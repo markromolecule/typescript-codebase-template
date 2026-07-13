@@ -1,6 +1,6 @@
 {
   "name": "@markromolecule/octo",
-  "version": "0.3.0",
+  "version": "0.3.2",
   "description": "Octo CLI — an interactive TypeScript scaffolder for full-stack monorepos and standard apps",
   "type": "module",
   "bin": {
