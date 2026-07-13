@@ -26,9 +26,9 @@ The prompts ask for the project name, Monorepo or Standard structure, the applic
 Monorepo mode creates:
 
 - `apps/web` using React + Vite, Next.js, or Astro
-- `apps/api` using Hono or Express
+- `apps/api` using Hono or Express, with a mounted vertical `sample` module demonstrating DTO, route, controller, service, and data boundaries
 - `packages/db` with Prisma migrations and `prisma-kysely`-generated types used by a Kysely runtime client
-- `packages/ui`, `hooks`, `services`, `shared`, `tsconfig`, and `eslint-config`
+- `packages/ui`, `hooks`, `services`, `shared`, `tsconfig`, and `eslint-config`; the shared package starts with `schemas`, `types`, `utils`, and `constants` source directories
 - `pnpm-workspace.yaml` and `turbo.json`
 
 Standard mode uses the official Vite, Next.js, or Astro generator. Hono and Express use small conventional TypeScript starters. It never creates workspace files or workspace directories.
@@ -43,6 +43,8 @@ Both modes also create project infrastructure:
 - `.github/dependabot.yml` for weekly npm and GitHub Actions updates
 - root `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` pointers so tools discover the nested factory
 - `context:validate` to check the factory manifest, skills, links, and Obsidian configuration
+
+Backend starters include `src/modules/sample/` with action-first files such as `create-sample.service.ts`, `create-sample.controller.ts`, and `create-sample.data.ts`. Use singular feature names for one-record operations and plural names such as `delete-samples.service.ts` for true bulk operations.
 
 `turbo.json` remains Monorepo-only; Standard projects retain their framework's normal structure.
 

@@ -30,7 +30,23 @@ describe("scaffoldProject", () => {
     expect(await readFile(join(root, "pnpm-workspace.yaml"), "utf8")).toContain('"apps/*"');
     expect(await readFile(join(root, "apps/web/src/main.tsx"), "utf8")).toContain("createRoot");
     expect(await readFile(join(root, "apps/api/src/index.ts"), "utf8")).toContain("Hono");
+    expect(await readFile(join(root, "apps/api/src/index.ts"), "utf8")).toContain(
+      'app.route("/samples", createSampleRoutes(sampleStore))',
+    );
+    expect(await readFile(join(root, "apps/api/src/index.ts"), "utf8")).toContain("bodyLimit({ maxSize: 100 * 1024");
     expect(JSON.parse(await readFile(join(root, "apps/api/tsconfig.json"), "utf8")).compilerOptions.types).toEqual(["node"]);
+    expect(JSON.parse(await readFile(join(root, "apps/api/package.json"), "utf8")).dependencies.zod).toBe("latest");
+    for (const layer of ["services", "controllers", "data"]) {
+      for (const action of ["create", "update", "delete"]) {
+        const suffix = layer === "services" ? "service" : layer === "controllers" ? "controller" : "data";
+        expect(await readFile(
+          join(root, `apps/api/src/modules/sample/${layer}/${action}-sample.${suffix}.ts`),
+          "utf8",
+        )).toContain(`${action}Sample`);
+      }
+    }
+    expect(await readFile(join(root, "apps/api/src/modules/sample/dto/sample.dto.ts"), "utf8")).toContain(".strict()");
+    expect(await readFile(join(root, "apps/api/src/modules/sample/sample.routes.ts"), "utf8")).toContain('patch("/:id"');
     expect(await readFile(join(root, "packages/db/prisma/schema.prisma"), "utf8")).toContain('provider = "prisma-kysely"');
     expect(await readFile(join(root, "packages/db/prisma.config.ts"), "utf8")).toContain("defineConfig");
     const databasePackage = JSON.parse(await readFile(join(root, "packages/db/package.json"), "utf8"));
@@ -38,6 +54,12 @@ describe("scaffoldProject", () => {
     expect(JSON.parse(await readFile(join(root, "packages/db/tsconfig.json"), "utf8")).compilerOptions.types).toEqual(["node"]);
     expect(await readFile(join(root, "packages/tsconfig/package.json"), "utf8")).toContain("@workspace/tsconfig");
     expect(await readFile(join(root, "packages/eslint-config/package.json"), "utf8")).toContain("@workspace/eslint-config");
+    for (const directory of ["schemas", "types", "utils", "constants"]) {
+      expect(await readFile(join(root, `packages/shared/src/${directory}/index.ts`), "utf8")).toBe("export {};\n");
+    }
+    expect(await readFile(join(root, "packages/shared/src/index.ts"), "utf8")).toContain(
+      'export * from "./schemas/index.js";',
+    );
     expect(await readFile(join(root, ".npmrc"), "utf8")).toContain("prefer-workspace-packages=true");
     expect(await readFile(join(root, ".nvmrc"), "utf8")).toBe("20\n");
     expect(await readFile(join(root, ".github/workflows/ci.yml"), "utf8")).toContain("pnpm run build");
@@ -55,6 +77,7 @@ describe("scaffoldProject", () => {
     );
     const packageJson = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
     expect(packageJson.dependencies.express).toBe("latest");
+    expect(packageJson.dependencies.zod).toBe("latest");
     expect(JSON.parse(await readFile(join(root, "tsconfig.json"), "utf8")).compilerOptions.types).toEqual(["node"]);
     expect(packageJson.scripts["context:pull"]).toBe(CONTEXT_PULL_SCRIPT);
     expect(packageJson.scripts["context:validate"]).toBe(CONTEXT_VALIDATE_SCRIPT);
@@ -62,6 +85,13 @@ describe("scaffoldProject", () => {
     expect(await readFile(join(root, ".nvmrc"), "utf8")).toBe("20\n");
     expect(await readFile(join(root, ".github/workflows/ci.yml"), "utf8")).toContain("node-version-file: .nvmrc");
     expect(await readFile(join(root, ".github/dependabot.yml"), "utf8")).toContain("package-ecosystem: npm");
+    expect(await readFile(join(root, "src/index.ts"), "utf8")).toContain(
+      'app.use("/samples", createSampleRoutes(sampleStore))',
+    );
+    expect(await readFile(join(root, "src/index.ts"), "utf8")).toContain('express.json({ limit: "100kb" })');
+    expect(await readFile(join(root, "src/modules/sample/controllers/create-sample.controller.ts"), "utf8")).toContain(
+      "createSampleDtoSchema.safeParse",
+    );
     await expect(readFile(join(root, "pnpm-workspace.yaml"), "utf8")).rejects.toThrow();
     await expect(readFile(join(root, "turbo.json"), "utf8")).rejects.toThrow();
   });
