@@ -1,0 +1,41 @@
+{
+  "name": "create-monorepo-template",
+  "version": "0.1.0",
+  "description": "Interactive TypeScript scaffolder for full-stack monorepos and standard apps",
+  "type": "module",
+  "bin": {
+    "create-monorepo-template": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "context:validate": "node context-factory/scripts/validate-context.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.28.1",
+  "dependencies": {
+    "@clack/prompts": "^0.11.0",
+    "execa": "^9.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  },
+  "keywords": [
+    "create",
+    "monorepo",
+    "turborepo",
+    "pnpm",
+    "typescript"
+  ],
+  "license": "MIT"
+}
