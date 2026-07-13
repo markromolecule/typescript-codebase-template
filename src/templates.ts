@@ -87,7 +87,7 @@ export async function createBackend(root: string, framework: BackendFramework): 
   });
   await writeJson(join(dir, "tsconfig.json"), {
     extends: "@workspace/tsconfig/base.json",
-    compilerOptions: { outDir: "dist", rootDir: "src" },
+    compilerOptions: { outDir: "dist", rootDir: "src", types: ["node"] },
     include: ["src/**/*.ts"],
   });
   const source = isHono
@@ -149,11 +149,11 @@ export async function createDatabase(root: string): Promise<void> {
     exports: { ".": "./src/index.ts" },
     scripts: { "db:generate": "prisma generate", "db:migrate": "prisma migrate dev", build: "tsc -p tsconfig.json" },
     dependencies: { kysely: "latest", pg: "latest" },
-    devDependencies: { "@types/pg": "latest", "@workspace/tsconfig": "workspace:*", prisma: "latest", "prisma-kysely": "latest", typescript: "^5.9.3" },
+    devDependencies: { "@types/node": "latest", "@types/pg": "latest", "@workspace/tsconfig": "workspace:*", prisma: "latest", "prisma-kysely": "latest", typescript: "^5.9.3" },
   });
   await writeJson(join(dir, "tsconfig.json"), {
     extends: "@workspace/tsconfig/base.json",
-    compilerOptions: { outDir: "dist", rootDir: "src" },
+    compilerOptions: { outDir: "dist", rootDir: "src", types: ["node"] },
     include: ["src/**/*.ts"],
   });
   await writeText(join(dir, "prisma/schema.prisma"), 'generator kysely {\n  provider = "prisma-kysely"\n  output   = "../src/generated"\n}\n\ndatasource db {\n  provider = "postgresql"\n}\n\nmodel User {\n  id        String   @id @default(cuid())\n  email     String   @unique\n  name      String?\n  createdAt DateTime @default(now())\n  updatedAt DateTime @updatedAt\n}');
@@ -174,7 +174,7 @@ export async function createMinimalStandard(root: string, framework: Extract<Fra
     devDependencies: isHono ? { "@types/node": "latest", tsx: "latest", typescript: "^5.9.3" } : { "@types/express": "latest", "@types/node": "latest", tsx: "latest", typescript: "^5.9.3" },
   });
   await writeJson(join(root, "tsconfig.json"), {
-    compilerOptions: { target: "ES2022", module: "NodeNext", moduleResolution: "NodeNext", rootDir: "src", outDir: "dist", strict: true, esModuleInterop: true, skipLibCheck: true },
+    compilerOptions: { target: "ES2022", module: "NodeNext", moduleResolution: "NodeNext", rootDir: "src", outDir: "dist", types: ["node"], strict: true, esModuleInterop: true, skipLibCheck: true },
     include: ["src/**/*.ts"],
   });
   await writeText(join(root, "src/index.ts"), isHono

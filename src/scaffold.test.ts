@@ -30,8 +30,12 @@ describe("scaffoldProject", () => {
     expect(await readFile(join(root, "pnpm-workspace.yaml"), "utf8")).toContain('"apps/*"');
     expect(await readFile(join(root, "apps/web/src/main.tsx"), "utf8")).toContain("createRoot");
     expect(await readFile(join(root, "apps/api/src/index.ts"), "utf8")).toContain("Hono");
+    expect(JSON.parse(await readFile(join(root, "apps/api/tsconfig.json"), "utf8")).compilerOptions.types).toEqual(["node"]);
     expect(await readFile(join(root, "packages/db/prisma/schema.prisma"), "utf8")).toContain('provider = "prisma-kysely"');
     expect(await readFile(join(root, "packages/db/prisma.config.ts"), "utf8")).toContain("defineConfig");
+    const databasePackage = JSON.parse(await readFile(join(root, "packages/db/package.json"), "utf8"));
+    expect(databasePackage.devDependencies["@types/node"]).toBe("latest");
+    expect(JSON.parse(await readFile(join(root, "packages/db/tsconfig.json"), "utf8")).compilerOptions.types).toEqual(["node"]);
     expect(await readFile(join(root, "packages/tsconfig/package.json"), "utf8")).toContain("@workspace/tsconfig");
     expect(await readFile(join(root, "packages/eslint-config/package.json"), "utf8")).toContain("@workspace/eslint-config");
     expect(await readFile(join(root, ".npmrc"), "utf8")).toContain("prefer-workspace-packages=true");
@@ -51,6 +55,7 @@ describe("scaffoldProject", () => {
     );
     const packageJson = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
     expect(packageJson.dependencies.express).toBe("latest");
+    expect(JSON.parse(await readFile(join(root, "tsconfig.json"), "utf8")).compilerOptions.types).toEqual(["node"]);
     expect(packageJson.scripts["context:pull"]).toBe(CONTEXT_PULL_SCRIPT);
     expect(packageJson.scripts["context:validate"]).toBe(CONTEXT_VALIDATE_SCRIPT);
     expect(await readFile(join(root, ".npmrc"), "utf8")).toContain("engine-strict=true");
