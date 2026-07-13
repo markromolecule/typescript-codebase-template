@@ -3,7 +3,7 @@ import * as p from "@clack/prompts";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { OCTO_BANNER, OCTO_PACKAGE_NAME } from "./branding.js";
-import { DEFAULT_CONTEXT_REPOSITORY } from "./constants.js";
+import { OFFICIAL_CONTEXT_REPOSITORY } from "./constants.js";
 import { collectAnswers } from "./prompts.js";
 import { scaffoldProject } from "./scaffold.js";
 
@@ -17,10 +17,9 @@ function optionValue(name: string, argv: string[]): string | undefined {
 export function resolveContextRepository(
   argv: string[] = process.argv,
   environment: NodeJS.ProcessEnv = process.env,
-): string {
+): string | undefined {
   return optionValue("--context-repo", argv)
-    ?? environment.CONTEXT_FACTORY_REPO
-    ?? DEFAULT_CONTEXT_REPOSITORY;
+    ?? environment.CONTEXT_FACTORY_REPO;
 }
 
 export function getHelpText(): string {
@@ -34,8 +33,11 @@ Options:
   -h, --help       Show help
   -v, --version    Show the Octo CLI version
 
-Default context factory:
-  ${DEFAULT_CONTEXT_REPOSITORY}
+Bundled context factory:
+  Included in the published package
+
+Git-backed override:
+  ${OFFICIAL_CONTEXT_REPOSITORY}
 
 Environment:
   CONTEXT_FACTORY_REPO   Override the context-factory Git repository URL`;

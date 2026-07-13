@@ -1,10 +1,11 @@
-import { access, mkdir, readFile, rm } from "node:fs/promises";
+import { access, cp, mkdir, readFile, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { execa } from "execa";
 import {
-  CONTEXT_PULL_SCRIPT,
   CONTEXT_VALIDATE_SCRIPT,
   frameworkLabel,
+  getContextPullScript,
   PROJECT_NAME_PATTERN,
 } from "./constants.js";
 import { addPackageScript, writeJson, writeText } from "./files.js";
@@ -22,6 +23,8 @@ type Runner = NonNullable<ScaffoldOptions["run"]>;
 const defaultRunner: Runner = async (command, args, cwd) => {
   await execa(command, args, { cwd, stdio: "inherit" });
 };
+
+const bundledContextFactoryPath = fileURLToPath(new URL("../context-factory", import.meta.url));
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -55,7 +58,6 @@ async function createMonorepo(root: string, answers: Answers): Promise<void> {
       build: "turbo run build",
       dev: "turbo run dev",
       "db:generate": "turbo run db:generate",
-      "context:pull": CONTEXT_PULL_SCRIPT,
     },
     devDependencies: { turbo: "latest", typescript: "^5.9.3" },
   });
@@ -199,9 +201,17 @@ async function runOfficialGenerator(
 async function installContextFactory(
   root: string,
   method: Answers["contextSync"],
-  repository: string,
+  repository: string | undefined,
   run: Runner,
 ): Promise<void> {
+  if (method === "bundled") {
+    await cp(bundledContextFactoryPath, join(root, "context-factory"), { recursive: true });
+    await rm(join(root, "context-factory/.git"), { recursive: true, force: true });
+    return;
+  }
+  if (!repository?.trim()) {
+    throw new Error("A context-factory repository URL is required for Git-backed sync.");
+  }
   if (method === "submodule") {
     if (!(await exists(join(root, ".git")))) await run("git", ["init"], root);
     await run("git", ["submodule", "add", repository, "context-factory"], root);
@@ -226,14 +236,16 @@ async function writeReadme(root: string, answers: Answers): Promise<void> {
   const structure = answers.mode === "monorepo"
     ? `A pnpm + Turborepo workspace with ${frameworkLabel[answers.frontend!]} in \`apps/web\`, ${frameworkLabel[answers.backend!]} in \`apps/api\`, and shared packages.`
     : `A standard ${frameworkLabel[framework]} project with context-factory layered into the project root.`;
-  await writeText(join(root, "README.md"), `# ${answers.projectName}\n\n${structure}\n\n## Start\n\n\`\`\`sh\npnpm install\n${devCommand}\n\`\`\`\n\n## Context factory\n\nPull and validate context with:\n\n\`\`\`sh\npnpm context:pull\npnpm context:validate\n\`\`\`\n\nOpen \`context-factory/\` as the Obsidian vault to navigate the complete rules, skills, orchestrators, tasks, and decisions graph.\n\n> Standalone clones intentionally have their nested Git metadata removed. To refresh a standalone copy, replace \`context-factory/\` from its upstream repository; the pull command is intended for submodule or Git-backed copies.\n`);
+  const contextNote = answers.contextSync === "submodule"
+    ? "Use `pnpm context:pull` to update the Git submodule, then run `pnpm context:validate`."
+    : answers.contextSync === "standalone"
+      ? "This project contains a standalone `context-factory/` snapshot with nested Git metadata removed. Refresh it by replacing `context-factory/` from the configured upstream repository, then run `pnpm context:validate`."
+      : "This project contains the bundled `context-factory/` snapshot that shipped with Octo. Refresh it by replacing `context-factory/` from upstream or rerunning Octo with `--context-repo` for Git-backed sync, then run `pnpm context:validate`.";
+  await writeText(join(root, "README.md"), `# ${answers.projectName}\n\n${structure}\n\n## Start\n\n\`\`\`sh\npnpm install\n${devCommand}\n\`\`\`\n\n## Context factory\n\nValidate the included rules, skills, and workflows with:\n\n\`\`\`sh\npnpm context:validate\n\`\`\`\n\nOpen \`context-factory/\` as the Obsidian vault to navigate the complete rules, skills, orchestrators, tasks, and decisions graph.\n\n> ${contextNote}\n`);
 }
 
 export async function scaffoldProject(answers: Answers, options: ScaffoldOptions): Promise<string> {
   assertValidAnswers(answers);
-  if (!options.contextRepository.trim()) {
-    throw new Error("A context-factory repository URL is required.");
-  }
   const parent = resolve(options.cwd);
   const root = resolve(parent, answers.projectName);
   if (dirname(root) !== parent) throw new Error("Project must be created directly inside the working directory.");
@@ -247,7 +259,7 @@ export async function scaffoldProject(answers: Answers, options: ScaffoldOptions
   if (!(await exists(packageJsonPath))) {
     throw new Error("Framework generator completed without creating package.json.");
   }
-  await addPackageScript(packageJsonPath, "context:pull", CONTEXT_PULL_SCRIPT);
+  await addPackageScript(packageJsonPath, "context:pull", getContextPullScript(answers.contextSync));
   await createProjectInfrastructure(root);
   await installContextFactory(root, answers.contextSync, options.contextRepository, run);
   await addPackageScript(packageJsonPath, "context:validate", CONTEXT_VALIDATE_SCRIPT);

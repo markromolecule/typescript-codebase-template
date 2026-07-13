@@ -7,7 +7,8 @@
     "octo": "./dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "context-factory"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",

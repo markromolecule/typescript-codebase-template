@@ -1,6 +1,6 @@
 # 🐙 Octo CLI
 
-Octo is an interactive TypeScript CLI that creates either a pnpm + Turborepo workspace or a framework-standard single application. Every generated project includes a reusable `context-factory` checkout and a `context:pull` script.
+Octo is an interactive TypeScript CLI that creates either a pnpm + Turborepo workspace or a framework-standard single application. Every generated project includes a reusable bundled `context-factory` snapshot and a `context:pull` script.
 
 ## Use
 
@@ -10,7 +10,7 @@ Run the published CLI from any directory:
 pnpm dlx @markromolecule/octo@latest
 ```
 
-The CLI uses `https://github.com/markromolecule/context-factory.git` automatically. Override it only when using a fork or private factory:
+By default, the CLI copies the bundled `context-factory` that ships inside the npm package. Override it only when using a fork or private factory:
 
 ```sh
 pnpm dlx @markromolecule/octo@latest \
@@ -27,9 +27,9 @@ octo
 
 Octo prints its package version in the terminal as `🐙 Octo CLI v<version>`. The former `@markromolecule/create-monorepo-template` package remains the legacy package; new releases use `@markromolecule/octo`.
 
-You may also set `CONTEXT_FACTORY_REPO` instead of passing the option. An explicit `--context-repo` takes precedence over the environment variable.
+You may also set `CONTEXT_FACTORY_REPO` instead of passing the option. An explicit `--context-repo` takes precedence over the environment variable. Git-backed sync modes use the provided repository; bundled mode does not require network access.
 
-The prompts ask for the project name, Monorepo or Standard structure, the applicable framework choices, and the context-factory sync method.
+The prompts ask for the project name, Monorepo or Standard structure, the applicable framework choices, and the context-factory delivery method.
 
 ## Generated modes
 
@@ -58,10 +58,11 @@ Backend starters include `src/modules/sample/` with action-first files such as `
 
 `turbo.json` remains Monorepo-only; Standard projects retain their framework's normal structure.
 
-## Context sync behavior
+## Context delivery behavior
 
+- **Bundled Snapshot** copies the packaged `context-factory/` into the generated project with no Git or network dependency.
 - **Git Submodule** initializes Git when needed and adds `context-factory/` as a submodule. `pnpm context:pull` updates it.
-- **Direct Clone (Standalone)** clones the repository and removes its nested `.git` directory, as required by the specification. Since removing Git metadata prevents a later `git pull`, refresh standalone copies by replacing `context-factory/` from upstream. The required `context:pull` script remains present for compatibility.
+- **Direct Clone (Standalone)** clones the repository and removes its nested `.git` directory. Since removing Git metadata prevents a later `git pull`, refresh standalone copies by replacing `context-factory/` from upstream. The generated `context:pull` script explains that limitation.
 
 ## Develop
 

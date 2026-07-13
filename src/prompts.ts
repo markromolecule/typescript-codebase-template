@@ -23,7 +23,7 @@ export async function collectAnswers(): Promise<Answers> {
   const projectName = requireValue(
     await p.text({
       message: "Project name",
-      placeholder: "my-project",
+      placeholder: "octo-project",
       validate(value) {
         if (!value) return "Enter a project name.";
         if (!PROJECT_NAME_PATTERN.test(value)) {
@@ -83,6 +83,7 @@ export async function collectAnswers(): Promise<Answers> {
     await p.select({
       message: "Context-factory sync",
       options: [
+        { value: "bundled", label: "Bundled Snapshot" },
         { value: "submodule", label: "Git Submodule" },
         { value: "standalone", label: "Direct Clone (Standalone)" },
       ],
