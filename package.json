@@ -1,6 +1,6 @@
 {
   "name": "@markromolecule/create-monorepo-template",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Interactive TypeScript scaffolder for full-stack monorepos and standard apps",
   "type": "module",
   "bin": {
