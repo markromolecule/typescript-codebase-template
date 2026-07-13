@@ -1,4 +1,5 @@
 import * as p from "@clack/prompts";
+import { OCTO_BANNER } from "./branding.js";
 import { PROJECT_NAME_PATTERN } from "./constants.js";
 import type {
   Answers,
@@ -18,7 +19,7 @@ function requireValue<T>(value: T | symbol): T {
 }
 
 export async function collectAnswers(): Promise<Answers> {
-  p.intro("create-monorepo-template");
+  p.intro(OCTO_BANNER);
   const projectName = requireValue(
     await p.text({
       message: "Project name",

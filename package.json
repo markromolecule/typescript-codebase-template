@@ -1,10 +1,10 @@
 {
-  "name": "@markromolecule/create-monorepo-template",
-  "version": "0.2.0",
-  "description": "Interactive TypeScript scaffolder for full-stack monorepos and standard apps",
+  "name": "@markromolecule/octo",
+  "version": "0.3.0",
+  "description": "Octo CLI — an interactive TypeScript scaffolder for full-stack monorepos and standard apps",
   "type": "module",
   "bin": {
-    "create-monorepo-template": "./dist/cli.js"
+    "octo": "./dist/cli.js"
   },
   "files": [
     "dist"
@@ -42,6 +42,8 @@
     "vitest": "^3.2.4"
   },
   "keywords": [
+    "octo",
+    "cli",
     "create",
     "monorepo",
     "turborepo",

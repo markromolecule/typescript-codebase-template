@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
+import { OCTO_BANNER, OCTO_PACKAGE_NAME, OCTO_VERSION } from "./branding.js";
 import { DEFAULT_CONTEXT_REPOSITORY } from "./constants.js";
-import { resolveContextRepository } from "./cli.js";
+import { getHelpText, resolveContextRepository } from "./cli.js";
+
+describe("Octo branding", () => {
+  it("uses package metadata as the CLI version source", () => {
+    expect(OCTO_PACKAGE_NAME).toBe("@markromolecule/octo");
+    expect(OCTO_BANNER).toBe(`🐙 Octo CLI v${OCTO_VERSION}`);
+  });
+
+  it("shows branded package and binary commands in help", () => {
+    expect(getHelpText()).toContain(`pnpm dlx ${OCTO_PACKAGE_NAME}@latest`);
+    expect(getHelpText()).toContain("octo [--context-repo <git-url>]");
+  });
+});
 
 describe("resolveContextRepository", () => {
   it("uses the official context factory by default", () => {

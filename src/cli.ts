@@ -2,6 +2,7 @@
 import * as p from "@clack/prompts";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { OCTO_BANNER, OCTO_PACKAGE_NAME } from "./branding.js";
 import { DEFAULT_CONTEXT_REPOSITORY } from "./constants.js";
 import { collectAnswers } from "./prompts.js";
 import { scaffoldProject } from "./scaffold.js";
@@ -22,9 +23,31 @@ export function resolveContextRepository(
     ?? DEFAULT_CONTEXT_REPOSITORY;
 }
 
+export function getHelpText(): string {
+  return `${OCTO_BANNER}
+
+Usage:
+  pnpm dlx ${OCTO_PACKAGE_NAME}@latest [--context-repo <git-url>]
+  octo [--context-repo <git-url>]
+
+Options:
+  -h, --help       Show help
+  -v, --version    Show the Octo CLI version
+
+Default context factory:
+  ${DEFAULT_CONTEXT_REPOSITORY}
+
+Environment:
+  CONTEXT_FACTORY_REPO   Override the context-factory Git repository URL`;
+}
+
 export async function main(): Promise<void> {
+  if (process.argv.includes("--version") || process.argv.includes("-v")) {
+    console.log(OCTO_BANNER);
+    return;
+  }
   if (process.argv.includes("--help") || process.argv.includes("-h")) {
-    console.log(`create-monorepo-template\n\nUsage:\n  pnpm dlx @markromolecule/create-monorepo-template@latest [--context-repo <git-url>]\n\nDefault context factory:\n  ${DEFAULT_CONTEXT_REPOSITORY}\n\nEnvironment:\n  CONTEXT_FACTORY_REPO   Override the context-factory Git repository URL`);
+    console.log(getHelpText());
     return;
   }
   const contextRepository = resolveContextRepository();

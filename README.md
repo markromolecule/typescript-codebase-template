@@ -1,21 +1,31 @@
-# create-monorepo-template
+# 🐙 Octo CLI
 
-An interactive TypeScript CLI that creates either a pnpm + Turborepo workspace or a framework-standard single application. Every generated project includes a reusable `context-factory` checkout and a `context:pull` script.
+Octo is an interactive TypeScript CLI that creates either a pnpm + Turborepo workspace or a framework-standard single application. Every generated project includes a reusable `context-factory` checkout and a `context:pull` script.
 
 ## Use
 
 Run the published CLI from any directory:
 
 ```sh
-pnpm dlx @markromolecule/create-monorepo-template@latest
+pnpm dlx @markromolecule/octo@latest
 ```
 
 The CLI uses `https://github.com/markromolecule/context-factory.git` automatically. Override it only when using a fork or private factory:
 
 ```sh
-pnpm dlx @markromolecule/create-monorepo-template@latest \
+pnpm dlx @markromolecule/octo@latest \
   --context-repo https://github.com/your-org/context-factory.git
 ```
+
+Install it globally when you want the shorter command:
+
+```sh
+pnpm add --global @markromolecule/octo
+octo --version
+octo
+```
+
+Octo prints its package version in the terminal as `🐙 Octo CLI v<version>`. The former `@markromolecule/create-monorepo-template` package remains the legacy package; new releases use `@markromolecule/octo`.
 
 You may also set `CONTEXT_FACTORY_REPO` instead of passing the option. An explicit `--context-repo` takes precedence over the environment variable.
 
@@ -62,4 +72,4 @@ pnpm test
 pnpm build
 ```
 
-Node.js 20 or newer is required. The executable is published through the `create-monorepo-template` bin in the scoped npm package.
+Node.js 20 or newer is required. The executable is published through the `octo` bin in the scoped npm package.
