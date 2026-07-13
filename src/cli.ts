@@ -2,25 +2,32 @@
 import * as p from "@clack/prompts";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { DEFAULT_CONTEXT_REPOSITORY } from "./constants.js";
 import { collectAnswers } from "./prompts.js";
 import { scaffoldProject } from "./scaffold.js";
 
-function optionValue(name: string): string | undefined {
-  const equals = process.argv.find((argument) => argument.startsWith(`${name}=`));
+function optionValue(name: string, argv: string[]): string | undefined {
+  const equals = argv.find((argument) => argument.startsWith(`${name}=`));
   if (equals) return equals.slice(name.length + 1);
-  const index = process.argv.indexOf(name);
-  return index >= 0 ? process.argv[index + 1] : undefined;
+  const index = argv.indexOf(name);
+  return index >= 0 ? argv[index + 1] : undefined;
+}
+
+export function resolveContextRepository(
+  argv: string[] = process.argv,
+  environment: NodeJS.ProcessEnv = process.env,
+): string {
+  return optionValue("--context-repo", argv)
+    ?? environment.CONTEXT_FACTORY_REPO
+    ?? DEFAULT_CONTEXT_REPOSITORY;
 }
 
 export async function main(): Promise<void> {
   if (process.argv.includes("--help") || process.argv.includes("-h")) {
-    console.log(`create-monorepo-template\n\nUsage:\n  pnpm create monorepo-template [--context-repo <git-url>]\n\nEnvironment:\n  CONTEXT_FACTORY_REPO   Default context-factory Git repository URL`);
+    console.log(`create-monorepo-template\n\nUsage:\n  pnpm dlx @markromolecule/create-monorepo-template@latest [--context-repo <git-url>]\n\nDefault context factory:\n  ${DEFAULT_CONTEXT_REPOSITORY}\n\nEnvironment:\n  CONTEXT_FACTORY_REPO   Override the context-factory Git repository URL`);
     return;
   }
-  const contextRepository = optionValue("--context-repo") ?? process.env.CONTEXT_FACTORY_REPO;
-  if (!contextRepository) {
-    throw new Error("Set CONTEXT_FACTORY_REPO or pass --context-repo <git-url>.");
-  }
+  const contextRepository = resolveContextRepository();
   const answers = await collectAnswers();
   const spinner = p.spinner();
   spinner.start("Creating project");

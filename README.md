@@ -4,18 +4,20 @@ An interactive TypeScript CLI that creates either a pnpm + Turborepo workspace o
 
 ## Use
 
-The context-factory repository is supplied explicitly because this package does not assume a particular organization or private upstream:
+Run the published CLI from any directory:
 
 ```sh
-CONTEXT_FACTORY_REPO=git@github.com:your-org/context-factory.git \
-  pnpm create monorepo-template
+pnpm dlx @markromolecule/create-monorepo-template@latest
 ```
 
-Or pass it as an option:
+The CLI uses `https://github.com/markromolecule/context-factory.git` automatically. Override it only when using a fork or private factory:
 
 ```sh
-pnpm create monorepo-template --context-repo https://github.com/your-org/context-factory.git
+pnpm dlx @markromolecule/create-monorepo-template@latest \
+  --context-repo https://github.com/your-org/context-factory.git
 ```
+
+You may also set `CONTEXT_FACTORY_REPO` instead of passing the option. An explicit `--context-repo` takes precedence over the environment variable.
 
 The prompts ask for the project name, Monorepo or Standard structure, the applicable framework choices, and the context-factory sync method.
 
@@ -58,4 +60,4 @@ pnpm test
 pnpm build
 ```
 
-Node.js 20 or newer is required. The executable is published through the `create-monorepo-template` bin and resolves from `pnpm create monorepo-template` when the package is published under that name.
+Node.js 20 or newer is required. The executable is published through the `create-monorepo-template` bin in the scoped npm package.
