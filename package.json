@@ -34,7 +34,7 @@
   "packageManager": "pnpm@10.28.1",
   "dependencies": {
     "@clack/prompts": "^0.11.0",
-    "execa": "^9.6.0"
+    "execa": "^10.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
