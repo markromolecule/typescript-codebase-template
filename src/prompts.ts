@@ -7,6 +7,7 @@ import type {
   ContextSyncMethod,
   Framework,
   FrontendFramework,
+  StylingSystem,
   StructureMode,
 } from "./types.js";
 
@@ -45,6 +46,7 @@ export async function collectAnswers(): Promise<Answers> {
   let frontend: FrontendFramework | undefined;
   let backend: BackendFramework | undefined;
   let framework: Framework | undefined;
+  let styling: StylingSystem | undefined;
   if (mode === "monorepo") {
     frontend = requireValue<FrontendFramework>(
       await p.select({
@@ -53,6 +55,18 @@ export async function collectAnswers(): Promise<Answers> {
           { value: "vite", label: "React + Vite" },
           { value: "next", label: "Next.js" },
           { value: "astro", label: "Astro" },
+        ],
+      }),
+    );
+    styling = requireValue<StylingSystem>(
+      await p.select({
+        message: "Styling and component system",
+        options: [
+          { value: "shadcn", label: "shadcn/ui", hint: "Tailwind-based editable components in packages/ui" },
+          { value: "daisyui", label: "daisyUI", hint: "Tailwind component classes and themes" },
+          { value: "bootstrap", label: "Bootstrap", hint: "Components, utilities, and CSS variables" },
+          { value: "tailwind", label: "Tailwind CSS", hint: "Utilities without a component library" },
+          { value: "none", label: "None / framework default" },
         ],
       }),
     );
@@ -78,6 +92,20 @@ export async function collectAnswers(): Promise<Answers> {
         ],
       }),
     );
+    if (["vite", "next", "astro"].includes(framework)) {
+      styling = requireValue<StylingSystem>(
+        await p.select({
+          message: "Styling and component system",
+          options: [
+            { value: "shadcn", label: "shadcn/ui", hint: "Tailwind-based editable components" },
+            { value: "daisyui", label: "daisyUI", hint: "Tailwind component classes and themes" },
+            { value: "bootstrap", label: "Bootstrap", hint: "Components, utilities, and CSS variables" },
+            { value: "tailwind", label: "Tailwind CSS", hint: "Utilities without a component library" },
+            { value: "none", label: "None / framework default" },
+          ],
+        }),
+      );
+    }
   }
   const contextSync = requireValue<ContextSyncMethod>(
     await p.select({
@@ -89,5 +117,5 @@ export async function collectAnswers(): Promise<Answers> {
       ],
     }),
   );
-  return { projectName, mode, frontend, backend, framework, contextSync };
+  return { projectName, mode, frontend, backend, framework, styling, contextSync };
 }

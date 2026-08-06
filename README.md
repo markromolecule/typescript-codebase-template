@@ -29,7 +29,7 @@ Octo prints its package version in the terminal as `🐙 Octo CLI v<version>`. T
 
 You may also set `CONTEXT_FACTORY_REPO` instead of passing the option. An explicit `--context-repo` takes precedence over the environment variable. Git-backed sync modes use the provided repository; bundled mode does not require network access.
 
-The prompts ask for the project name, Monorepo or Standard structure, the applicable framework choices, and the context-factory delivery method.
+The prompts ask for the project name, Monorepo or Standard structure, the applicable framework choices, a frontend styling/component system, and the context-factory delivery method. Frontend projects can select shadcn/ui, daisyUI, Bootstrap, Tailwind CSS, or the framework default.
 
 ## Generated modes
 
@@ -57,6 +57,8 @@ Both modes also create project infrastructure:
 Backend starters include `src/modules/sample/` with action-first files such as `create-sample.service.ts`, `create-sample.controller.ts`, and `create-sample.data.ts`. Use singular feature names for one-record operations and plural names such as `delete-samples.service.ts` for true bulk operations.
 
 `turbo.json` remains Monorepo-only; Standard projects retain their framework's normal structure.
+
+Selected styling dependencies and reusable primitives are placed in `packages/ui` for Monorepos, while framework build adapters remain in `apps/web`. Standard projects keep the same configuration in the application root. shadcn/ui also receives framework-aware `components.json` aliases so components added from `apps/web` are routed into `packages/ui`.
 
 ## Context delivery behavior
 

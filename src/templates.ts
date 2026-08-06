@@ -280,6 +280,7 @@ export async function createBackend(root: string, framework: BackendFramework): 
 export async function createSharedPackages(root: string): Promise<void> {
   const packages = ["ui", "hooks", "services", "shared"] as const;
   for (const name of packages) {
+    const isUi = name === "ui";
     await writeJson(join(root, `packages/${name}/package.json`), {
       name: `@workspace/${name}`,
       version: "0.0.0",
@@ -287,12 +288,21 @@ export async function createSharedPackages(root: string): Promise<void> {
       type: "module",
       exports: { ".": "./src/index.ts" },
       scripts: { build: "tsc -p tsconfig.json" },
-      devDependencies: { "@workspace/tsconfig": "workspace:*", typescript: "^5.9.3" },
+      peerDependencies: isUi ? { react: "latest", "react-dom": "latest" } : undefined,
+      devDependencies: {
+        "@workspace/tsconfig": "workspace:*",
+        typescript: "^5.9.3",
+        ...(isUi ? { "@types/react": "latest", "@types/react-dom": "latest" } : {}),
+      },
     });
     await writeJson(join(root, `packages/${name}/tsconfig.json`), {
-      extends: "@workspace/tsconfig/base.json",
-      compilerOptions: { outDir: "dist", rootDir: "src" },
-      include: ["src/**/*.ts"],
+      extends: isUi ? "@workspace/tsconfig/react.json" : "@workspace/tsconfig/base.json",
+      compilerOptions: {
+        outDir: "dist",
+        rootDir: "src",
+        ...(isUi ? { jsx: "react-jsx" } : {}),
+      },
+      include: isUi ? ["src/**/*.ts", "src/**/*.tsx"] : ["src/**/*.ts"],
     });
     await writeText(join(root, `packages/${name}/src/index.ts`), `export const packageName = "@workspace/${name}";`);
   }

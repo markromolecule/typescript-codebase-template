@@ -1,4 +1,4 @@
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -65,8 +65,153 @@ describe("scaffoldProject", () => {
     expect(await readFile(join(root, ".github/workflows/deploy.yml"), "utf8")).toContain("workflow_dispatch");
     expect(await readFile(join(root, ".github/dependabot.yml"), "utf8")).toContain("package-ecosystem: github-actions");
     expect(await readFile(join(root, "AGENTS.md"), "utf8")).toContain("context-factory/orchestrator/SHARED.md");
-    expect(await readFile(join(root, "context-factory/context-manifest.json"), "utf8")).toContain('"contextVersion": "2.3.0"');
+    expect(await readFile(join(root, "context-factory/context-manifest.json"), "utf8")).toContain('"contextVersion": "3.3.0"');
+    expect(await readFile(join(root, "docs/design-pattern.md"), "utf8")).toContain("Framework default");
     expect(calls).toEqual([]);
+  });
+
+  it("routes shadcn/ui into packages/ui and configures Astro as its consumer", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "shadcn-monorepo-"));
+    const root = await scaffoldProject(
+      {
+        projectName: "shadcn-app",
+        mode: "monorepo",
+        frontend: "astro",
+        backend: "hono",
+        styling: "shadcn",
+        contextSync: "bundled",
+      },
+      { cwd, run: async () => undefined },
+    );
+
+    const uiPackage = JSON.parse(await readFile(join(root, "packages/ui/package.json"), "utf8"));
+    const webPackage = JSON.parse(await readFile(join(root, "apps/web/package.json"), "utf8"));
+    expect(uiPackage.dependencies.shadcn).toBe("latest");
+    expect(uiPackage.dependencies["tailwind-merge"]).toBe("latest");
+    expect(uiPackage.exports["./components/*"]).toBe("./src/components/*.tsx");
+    expect(webPackage.dependencies["@workspace/ui"]).toBe("workspace:*");
+    expect(webPackage.dependencies["@astrojs/react"]).toBe("latest");
+    expect(await readFile(join(root, "packages/ui/components.json"), "utf8")).toContain("@workspace/ui/components");
+    expect(await readFile(join(root, "apps/web/components.json"), "utf8")).toContain("../../packages/ui/src/styles/globals.css");
+    expect(await readFile(join(root, "apps/web/astro.config.mjs"), "utf8")).toContain("integrations: [react()]");
+    expect(await readFile(join(root, "apps/web/src/pages/index.astro"), "utf8")).toContain('@workspace/ui/globals.css');
+    expect(await readFile(join(root, "docs/design-pattern.md"), "utf8")).toContain(
+      "routes shared primitives into `packages/ui`",
+    );
+  });
+
+  it("configures daisyUI in packages/ui with the Next.js PostCSS adapter", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "daisy-monorepo-"));
+    const root = await scaffoldProject(
+      {
+        projectName: "daisy-app",
+        mode: "monorepo",
+        frontend: "next",
+        backend: "express",
+        styling: "daisyui",
+        contextSync: "bundled",
+      },
+      { cwd, run: async () => undefined },
+    );
+
+    const uiPackage = JSON.parse(await readFile(join(root, "packages/ui/package.json"), "utf8"));
+    const webPackage = JSON.parse(await readFile(join(root, "apps/web/package.json"), "utf8"));
+    expect(uiPackage.devDependencies.daisyui).toBe("latest");
+    expect(webPackage.devDependencies["@tailwindcss/postcss"]).toBe("latest");
+    expect(await readFile(join(root, "packages/ui/src/styles.css"), "utf8")).toContain('@plugin "daisyui"');
+    expect(await readFile(join(root, "apps/web/postcss.config.mjs"), "utf8")).toContain("@tailwindcss/postcss");
+    expect(await readFile(join(root, "apps/web/app/layout.tsx"), "utf8")).toContain('@workspace/ui/styles.css');
+  });
+
+  it("configures Bootstrap in packages/ui without adding Tailwind tooling", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "bootstrap-monorepo-"));
+    const root = await scaffoldProject(
+      {
+        projectName: "bootstrap-app",
+        mode: "monorepo",
+        frontend: "vite",
+        backend: "hono",
+        styling: "bootstrap",
+        contextSync: "bundled",
+      },
+      { cwd, run: async () => undefined },
+    );
+
+    const uiPackage = JSON.parse(await readFile(join(root, "packages/ui/package.json"), "utf8"));
+    const webPackage = JSON.parse(await readFile(join(root, "apps/web/package.json"), "utf8"));
+    expect(uiPackage.dependencies.bootstrap).toBe("latest");
+    expect(uiPackage.devDependencies.tailwindcss).toBeUndefined();
+    expect(webPackage.devDependencies["@tailwindcss/vite"]).toBeUndefined();
+    expect(await readFile(join(root, "packages/ui/src/styles.css"), "utf8")).toContain(
+      '@import "bootstrap/dist/css/bootstrap.min.css"',
+    );
+    expect(await readFile(join(root, "apps/web/src/style.css"), "utf8")).toContain('@workspace/ui/styles.css');
+  });
+
+  it("configures standalone Tailwind CSS in packages/ui and the Vite build adapter", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "tailwind-monorepo-"));
+    const root = await scaffoldProject(
+      {
+        projectName: "tailwind-app",
+        mode: "monorepo",
+        frontend: "vite",
+        backend: "hono",
+        styling: "tailwind",
+        contextSync: "bundled",
+      },
+      { cwd, run: async () => undefined },
+    );
+
+    const uiPackage = JSON.parse(await readFile(join(root, "packages/ui/package.json"), "utf8"));
+    const webPackage = JSON.parse(await readFile(join(root, "apps/web/package.json"), "utf8"));
+    expect(uiPackage.devDependencies.tailwindcss).toBe("latest");
+    expect(uiPackage.devDependencies.daisyui).toBeUndefined();
+    expect(uiPackage.dependencies?.shadcn).toBeUndefined();
+    expect(webPackage.devDependencies["@tailwindcss/vite"]).toBe("latest");
+    expect(await readFile(join(root, "packages/ui/src/styles.css"), "utf8")).toContain('@import "tailwindcss"');
+    expect(await readFile(join(root, "apps/web/vite.config.ts"), "utf8")).toContain("tailwindcss()");
+  });
+
+  it("configures shadcn/ui inside a standard Vite application", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "shadcn-standard-"));
+    const root = await scaffoldProject(
+      {
+        projectName: "standard-web",
+        mode: "standard",
+        framework: "vite",
+        styling: "shadcn",
+        contextSync: "bundled",
+      },
+      {
+        cwd,
+        run: async (_command, args, parent) => {
+          const projectRoot = join(parent, args[2]);
+          await mkdir(join(projectRoot, "src"), { recursive: true });
+          await writeFile(join(projectRoot, "package.json"), JSON.stringify({
+            name: "standard-web",
+            private: true,
+            scripts: { dev: "vite", build: "vite build" },
+            dependencies: { react: "latest", "react-dom": "latest" },
+            devDependencies: { "@vitejs/plugin-react": "latest", vite: "latest", typescript: "latest" },
+          }));
+          await writeFile(join(projectRoot, "src/main.tsx"), 'import "./index.css";');
+          await writeFile(join(projectRoot, "src/index.css"), "");
+          await writeFile(join(projectRoot, "tsconfig.json"), JSON.stringify({ references: [{ path: "./tsconfig.app.json" }] }));
+          await writeFile(join(projectRoot, "tsconfig.app.json"), JSON.stringify({ compilerOptions: {} }));
+        },
+      },
+    );
+
+    const packageJson = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+    expect(packageJson.dependencies.shadcn).toBe("latest");
+    expect(packageJson.devDependencies["@tailwindcss/vite"]).toBe("latest");
+    expect(await readFile(join(root, "components.json"), "utf8")).toContain('"ui": "@/components/ui"');
+    expect(await readFile(join(root, "src/lib/utils.ts"), "utf8")).toContain("twMerge(clsx(inputs))");
+    expect(await readFile(join(root, "src/index.css"), "utf8")).toContain('@import "shadcn/tailwind.css"');
+    expect(JSON.parse(await readFile(join(root, "tsconfig.app.json"), "utf8")).compilerOptions.paths["@/*"]).toEqual([
+      "./src/*",
+    ]);
+    await expect(readFile(join(root, "packages/ui/package.json"), "utf8")).rejects.toThrow();
   });
 
   it("creates a standard backend without workspace files", async () => {
@@ -119,5 +264,30 @@ describe("scaffoldProject", () => {
       { projectName: "submodule-project", mode: "standard", framework: "express", contextSync: "submodule" },
       { cwd, run: async () => undefined },
     )).rejects.toThrow("A context-factory repository URL is required for Git-backed sync.");
+  });
+
+  it("initializes packages/ui with React support by default in monorepo regardless of styling", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "ui-react-default-"));
+    const root = await scaffoldProject(
+      {
+        projectName: "mono-react-ui",
+        mode: "monorepo",
+        frontend: "vite",
+        backend: "hono",
+        styling: "none",
+        contextSync: "bundled",
+      },
+      { cwd, run: async () => undefined },
+    );
+
+    const uiPackage = JSON.parse(await readFile(join(root, "packages/ui/package.json"), "utf8"));
+    const uiTsconfig = JSON.parse(await readFile(join(root, "packages/ui/tsconfig.json"), "utf8"));
+    expect(uiPackage.peerDependencies.react).toBe("latest");
+    expect(uiPackage.peerDependencies["react-dom"]).toBe("latest");
+    expect(uiPackage.devDependencies["@types/react"]).toBe("latest");
+    expect(uiPackage.devDependencies["@types/react-dom"]).toBe("latest");
+    expect(uiTsconfig.extends).toBe("@workspace/tsconfig/react.json");
+    expect(uiTsconfig.compilerOptions.jsx).toBe("react-jsx");
+    expect(uiTsconfig.include).toContain("src/**/*.tsx");
   });
 });

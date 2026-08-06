@@ -9,6 +9,7 @@ import {
   PROJECT_NAME_PATTERN,
 } from "./constants.js";
 import { addPackageScript, writeJson, writeText } from "./files.js";
+import { configureStyling, getStylingLabel } from "./styling.js";
 import {
   createBackend,
   createDatabase,
@@ -221,13 +222,57 @@ async function installContextFactory(
   }
 }
 
-async function createContextEntrypoints(root: string): Promise<void> {
-  const shared = "Before changing this project, read `context-factory/orchestrator/SHARED.md` and `context-factory/context-manifest.json`. Load only task-relevant rules and skills. Run `pnpm context:validate` after changing context files.";
+async function createContextEntrypoints(root: string, answers: Answers): Promise<void> {
+  const hasFrontend = answers.mode === "monorepo"
+    || answers.framework === "vite"
+    || answers.framework === "next"
+    || answers.framework === "astro";
+  const frontend = hasFrontend ? " For frontend work, also read `docs/design-pattern.md`." : "";
+  const shared = `Before changing this project, read \`context-factory/orchestrator/SHARED.md\` and \`context-factory/context-manifest.json\`. Load only task-relevant rules and skills.${frontend} Run \`pnpm context:validate\` after changing context files.`;
   await Promise.all([
     writeText(join(root, "AGENTS.md"), `# Project Agent Entry Point\n\n${shared}`),
     writeText(join(root, "CLAUDE.md"), `# Claude Project Entry Point\n\n${shared}\n\nUse \`context-factory/orchestrator/CLAUDE.md\` for adapter-specific presentation guidance.`),
     writeText(join(root, "GEMINI.md"), `# Gemini Project Entry Point\n\n${shared}\n\nUse \`context-factory/orchestrator/GEMINI.md\` for adapter-specific presentation guidance.`),
   ]);
+}
+
+async function writeDesignPatternProfile(root: string, answers: Answers): Promise<void> {
+  const framework = answers.mode === "monorepo" ? answers.frontend : answers.framework;
+  if (framework !== "vite" && framework !== "next" && framework !== "astro") return;
+  const styling = answers.styling ?? "none";
+  const owner = answers.mode === "monorepo" ? "`packages/ui`" : "the application source tree";
+  const consumer = answers.mode === "monorepo" ? "`apps/web` consumes `@workspace/ui`" : "components remain local to the application";
+  const addCommand = styling === "shadcn"
+    ? answers.mode === "monorepo"
+      ? "`pnpm dlx shadcn@latest add <component> -c apps/web` routes shared primitives into `packages/ui`."
+      : "Run `pnpm dlx shadcn@latest add <component>` from the project root."
+    : "Add new primitives through the selected system's existing package and configuration; do not introduce a second UI system by default.";
+  await writeText(
+    join(root, "docs/design-pattern.md"),
+    `# Generated frontend design pattern
+
+This project selected **${frameworkLabel[framework]}** with **${getStylingLabel(styling)}** during scaffolding.
+
+## Architecture
+
+- Styling and reusable component ownership: ${owner}.
+- Consumption boundary: ${consumer}.
+- Keep route- and feature-specific composition in the frontend application; keep reusable, data-agnostic primitives in ${owner}.
+- Build-tool adapters may remain in the application package, but styling-system dependencies and shared primitives belong to their owning UI package.
+
+## Design-system contract
+
+- Use the selected styling system and its tokens before adding another library.
+- Adapt library defaults to the product's content and visual language; do not ship an unchanged generic theme.
+- Avoid unnecessary wrappers, cards inside cards, excessive shadows, generic gradients, and decorative section badges.
+- Every wrapper must have a semantic, layout, responsive, or interaction purpose.
+- Follow \`context-factory/skills/design-pattern/SKILL.md\` and the most-specific frontend rules before creating pages or components.
+
+## Component workflow
+
+${addCommand}
+`,
+  );
 }
 
 async function writeReadme(root: string, answers: Answers): Promise<void> {
@@ -236,12 +281,15 @@ async function writeReadme(root: string, answers: Answers): Promise<void> {
   const structure = answers.mode === "monorepo"
     ? `A pnpm + Turborepo workspace with ${frameworkLabel[answers.frontend!]} in \`apps/web\`, ${frameworkLabel[answers.backend!]} in \`apps/api\`, and shared packages.`
     : `A standard ${frameworkLabel[framework]} project with context-factory layered into the project root.`;
+  const stylingNote = framework === "vite" || framework === "next" || framework === "astro"
+    ? `\n\n## Frontend design system\n\nThis project uses **${getStylingLabel(answers.styling)}**. Read \`docs/design-pattern.md\` before changing frontend components or pages.${answers.mode === "monorepo" ? " Shared UI primitives and styling dependencies are owned by `packages/ui`." : ""}`
+    : "";
   const contextNote = answers.contextSync === "submodule"
     ? "Use `pnpm context:pull` to update the Git submodule, then run `pnpm context:validate`."
     : answers.contextSync === "standalone"
       ? "This project contains a standalone `context-factory/` snapshot with nested Git metadata removed. Refresh it by replacing `context-factory/` from the configured upstream repository, then run `pnpm context:validate`."
       : "This project contains the bundled `context-factory/` snapshot that shipped with Octo. Refresh it by replacing `context-factory/` from upstream or rerunning Octo with `--context-repo` for Git-backed sync, then run `pnpm context:validate`.";
-  await writeText(join(root, "README.md"), `# ${answers.projectName}\n\n${structure}\n\n## Start\n\n\`\`\`sh\npnpm install\n${devCommand}\n\`\`\`\n\n## Context factory\n\nValidate the included rules, skills, and workflows with:\n\n\`\`\`sh\npnpm context:validate\n\`\`\`\n\nOpen \`context-factory/\` as the Obsidian vault to navigate the complete rules, skills, orchestrators, tasks, and decisions graph.\n\n> ${contextNote}\n`);
+  await writeText(join(root, "README.md"), `# ${answers.projectName}\n\n${structure}${stylingNote}\n\n## Start\n\n\`\`\`sh\npnpm install\n${devCommand}\n\`\`\`\n\n## Context factory\n\nValidate the included rules, skills, and workflows with:\n\n\`\`\`sh\npnpm context:validate\n\`\`\`\n\nOpen \`context-factory/\` as the Obsidian vault to navigate the complete rules, skills, orchestrators, tasks, and decisions graph.\n\n> ${contextNote}\n`);
 }
 
 export async function scaffoldProject(answers: Answers, options: ScaffoldOptions): Promise<string> {
@@ -259,11 +307,13 @@ export async function scaffoldProject(answers: Answers, options: ScaffoldOptions
   if (!(await exists(packageJsonPath))) {
     throw new Error("Framework generator completed without creating package.json.");
   }
+  await configureStyling(root, answers);
   await addPackageScript(packageJsonPath, "context:pull", getContextPullScript(answers.contextSync));
   await createProjectInfrastructure(root);
   await installContextFactory(root, answers.contextSync, options.contextRepository, run);
   await addPackageScript(packageJsonPath, "context:validate", CONTEXT_VALIDATE_SCRIPT);
-  await createContextEntrypoints(root);
+  await createContextEntrypoints(root, answers);
+  await writeDesignPatternProfile(root, answers);
   await writeReadme(root, answers);
   return root;
 }

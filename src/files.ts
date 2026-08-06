@@ -22,3 +22,18 @@ export async function addPackageScript(
   packageJson.scripts = { ...packageJson.scripts, [name]: command };
   await writeJson(packageJsonPath, packageJson);
 }
+
+export async function updatePackageJson(
+  packageJsonPath: string,
+  update: (packageJson: Record<string, unknown>) => Record<string, unknown>,
+): Promise<void> {
+  await updateJson(packageJsonPath, update);
+}
+
+export async function updateJson(
+  path: string,
+  update: (value: Record<string, unknown>) => Record<string, unknown>,
+): Promise<void> {
+  const value = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+  await writeJson(path, update(value));
+}

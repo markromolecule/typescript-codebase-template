@@ -52,7 +52,7 @@ export async function main(): Promise<void> {
     console.log(getHelpText());
     return;
   }
-  const contextRepository = resolveContextRepository();
+  const contextRepository = resolveContextRepository() ?? OFFICIAL_CONTEXT_REPOSITORY;
   const answers = await collectAnswers();
   const spinner = p.spinner();
   spinner.start("Creating project");
