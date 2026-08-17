@@ -1,6 +1,6 @@
 {
   "name": "@markromolecule/octo",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Octo CLI — an interactive TypeScript scaffolder for full-stack monorepos and standard apps",
   "type": "module",
   "bin": {
@@ -15,6 +15,8 @@
     "dev": "tsx src/cli.ts",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "context:pull": "git submodule update --remote --merge",
+    "context:update": "git submodule update --remote --merge",
     "context:validate": "node context-factory/scripts/validate-context.mjs"
   },
   "engines": {

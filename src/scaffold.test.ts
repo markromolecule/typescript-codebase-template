@@ -65,7 +65,7 @@ describe("scaffoldProject", () => {
     expect(await readFile(join(root, ".github/workflows/deploy.yml"), "utf8")).toContain("workflow_dispatch");
     expect(await readFile(join(root, ".github/dependabot.yml"), "utf8")).toContain("package-ecosystem: github-actions");
     expect(await readFile(join(root, "AGENTS.md"), "utf8")).toContain("context-factory/orchestrator/SHARED.md");
-    expect(await readFile(join(root, "context-factory/context-manifest.json"), "utf8")).toContain('"contextVersion": "3.3.0"');
+    expect(await readFile(join(root, "context-factory/context-manifest.json"), "utf8")).toContain('"contextVersion": "3.4.0"');
     expect(await readFile(join(root, "docs/design-pattern.md"), "utf8")).toContain("Framework default");
     expect(calls).toEqual([]);
   });
