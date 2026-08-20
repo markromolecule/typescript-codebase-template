@@ -22,7 +22,20 @@ import type { Answers, Framework, ScaffoldOptions } from "./types.js";
 type Runner = NonNullable<ScaffoldOptions["run"]>;
 
 const defaultRunner: Runner = async (command, args, cwd) => {
-  await execa(command, args, { cwd, stdio: "inherit" });
+  try {
+    await execa(command, args, { cwd, stdio: "pipe" });
+  } catch (error: unknown) {
+    if (
+      error
+      && typeof error === "object"
+      && "stderr" in error
+      && typeof error.stderr === "string"
+      && error.stderr.trim()
+    ) {
+      throw new Error(`Command failed: ${command} ${args.join(" ")}\n${error.stderr}`);
+    }
+    throw error;
+  }
 };
 
 const bundledContextFactoryPath = fileURLToPath(new URL("../context-factory", import.meta.url));
@@ -190,9 +203,9 @@ async function runOfficialGenerator(
   if (framework === "vite") {
     await run("pnpm", ["dlx", "create-vite@latest", projectName, "--template", "react-ts"], parent);
   } else if (framework === "next") {
-    await run("pnpm", ["dlx", "create-next-app@latest", projectName, "--ts", "--eslint", "--app", "--src-dir", "--use-pnpm", "--no-tailwind", "--import-alias", "@/*", "--yes"], parent);
+    await run("pnpm", ["dlx", "create-next-app@latest", projectName, "--ts", "--eslint", "--app", "--src-dir", "--use-pnpm", "--no-tailwind", "--import-alias", "@/*", "--skip-install", "--disable-git", "--yes"], parent);
   } else if (framework === "astro") {
-    await run("pnpm", ["dlx", "create-astro@latest", projectName, "--template", "minimal", "--typescript", "strict", "--no-install", "--no-git", "--yes"], parent);
+    await run("pnpm", ["dlx", "create-astro@latest", projectName, "--template", "minimal", "--no-install", "--no-git", "--skip-houston", "--yes"], parent);
   } else {
     await mkdir(join(parent, projectName), { recursive: true });
     await createMinimalStandard(join(parent, projectName), framework);

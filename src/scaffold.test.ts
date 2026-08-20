@@ -65,7 +65,7 @@ describe("scaffoldProject", () => {
     expect(await readFile(join(root, ".github/workflows/deploy.yml"), "utf8")).toContain("workflow_dispatch");
     expect(await readFile(join(root, ".github/dependabot.yml"), "utf8")).toContain("package-ecosystem: github-actions");
     expect(await readFile(join(root, "AGENTS.md"), "utf8")).toContain("context-factory/orchestrator/SHARED.md");
-    expect(await readFile(join(root, "context-factory/context-manifest.json"), "utf8")).toContain('"contextVersion": "3.4.0"');
+    expect(await readFile(join(root, "context-factory/context-manifest.json"), "utf8")).toContain('"contextVersion": "3.5.0"');
     expect(await readFile(join(root, "docs/design-pattern.md"), "utf8")).toContain("Framework default");
     expect(calls).toEqual([]);
   });
@@ -289,5 +289,50 @@ describe("scaffoldProject", () => {
     expect(uiTsconfig.extends).toBe("@workspace/tsconfig/react.json");
     expect(uiTsconfig.compilerOptions.jsx).toBe("react-jsx");
     expect(uiTsconfig.include).toContain("src/**/*.tsx");
+  });
+
+  it("passes fast, non-blocking arguments to official generators", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "generator-flags-"));
+    const recordedCalls: { command: string; args: string[] }[] = [];
+    const mockRun = async (command: string, args: string[], parent: string) => {
+      recordedCalls.push({ command, args });
+      const projectRoot = join(parent, args[2]);
+      await mkdir(projectRoot, { recursive: true });
+      await writeFile(
+        join(projectRoot, "package.json"),
+        JSON.stringify({ name: args[2], private: true, scripts: { dev: "run", build: "build" } }),
+      );
+    };
+
+    await scaffoldProject(
+      { projectName: "next-fast", mode: "standard", framework: "next", contextSync: "bundled" },
+      { cwd, run: mockRun },
+    );
+    expect(recordedCalls[0].command).toBe("pnpm");
+    expect(recordedCalls[0].args).toContain("create-next-app@latest");
+    expect(recordedCalls[0].args).toContain("--skip-install");
+    expect(recordedCalls[0].args).toContain("--disable-git");
+    expect(recordedCalls[0].args).toContain("--yes");
+
+    await scaffoldProject(
+      { projectName: "astro-fast", mode: "standard", framework: "astro", contextSync: "bundled" },
+      { cwd, run: mockRun },
+    );
+    expect(recordedCalls[1].command).toBe("pnpm");
+    expect(recordedCalls[1].args).toContain("create-astro@latest");
+    expect(recordedCalls[1].args).toContain("--skip-houston");
+    expect(recordedCalls[1].args).toContain("--no-install");
+    expect(recordedCalls[1].args).toContain("--no-git");
+    expect(recordedCalls[1].args).toContain("--yes");
+    expect(recordedCalls[1].args).not.toContain("--typescript");
+
+    await scaffoldProject(
+      { projectName: "vite-fast", mode: "standard", framework: "vite", contextSync: "bundled" },
+      { cwd, run: mockRun },
+    );
+    expect(recordedCalls[2].command).toBe("pnpm");
+    expect(recordedCalls[2].args).toContain("create-vite@latest");
+    expect(recordedCalls[2].args).toContain("--template");
+    expect(recordedCalls[2].args).toContain("react-ts");
   });
 });
