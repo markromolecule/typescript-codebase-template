@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Deployment configuration required
         run: echo "Configure the target host, repository environment, and secrets before adding deployment commands."
