@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import * as p from "@clack/prompts";
+import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { OCTO_BANNER, OCTO_PACKAGE_NAME } from "./branding.js";
@@ -61,7 +62,14 @@ export async function main(): Promise<void> {
   p.outro(`Created ${root}\n\nNext: cd ${answers.projectName} && pnpm install`);
 }
 
-const isEntryPoint = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const isEntryPoint = process.argv[1] && (() => {
+  const currentPath = fileURLToPath(import.meta.url);
+  try {
+    return resolve(process.argv[1]) === currentPath || realpathSync(process.argv[1]) === currentPath;
+  } catch {
+    return false;
+  }
+})();
 if (isEntryPoint) {
   main().catch((error: unknown) => {
     p.cancel(error instanceof Error ? error.message : String(error));

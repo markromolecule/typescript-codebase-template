@@ -279,7 +279,7 @@ This project selected **${frameworkLabel[framework]}** with **${getStylingLabel(
 - Adapt library defaults to the product's content and visual language; do not ship an unchanged generic theme.
 - Avoid unnecessary wrappers, cards inside cards, excessive shadows, generic gradients, and decorative section badges.
 - Every wrapper must have a semantic, layout, responsive, or interaction purpose.
-- Follow \`context-factory/skills/design-pattern/SKILL.md\` and the most-specific frontend rules before creating pages or components.
+- Follow \`context-factory/rules/ui/frontend.md\` and the most-specific frontend rules before creating pages or components.
 
 ## Component workflow
 
