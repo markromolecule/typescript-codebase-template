@@ -4,7 +4,6 @@ import { PROJECT_NAME_PATTERN } from "./constants.js";
 import type {
   Answers,
   BackendFramework,
-  ContextSyncMethod,
   Framework,
   FrontendFramework,
   StylingSystem,
@@ -107,15 +106,6 @@ export async function collectAnswers(): Promise<Answers> {
       );
     }
   }
-  const contextSync = requireValue<ContextSyncMethod>(
-    await p.select({
-      message: "Context-factory sync",
-      options: [
-        { value: "bundled", label: "Bundled Snapshot" },
-        { value: "submodule", label: "Git Submodule" },
-        { value: "standalone", label: "Direct Clone (Standalone)" },
-      ],
-    }),
-  );
-  return { projectName, mode, frontend, backend, framework, styling, contextSync };
+
+  return { projectName, mode, frontend, backend, framework, styling };
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { OCTO_BANNER, OCTO_PACKAGE_NAME, OCTO_VERSION } from "./branding.js";
 import { getHelpText, resolveContextRepository } from "./cli.js";
+import { OFFICIAL_CONTEXT_REPOSITORY } from "./constants.js";
 
 describe("Octo branding", () => {
   it("uses package metadata as the CLI version source", () => {
@@ -11,13 +12,13 @@ describe("Octo branding", () => {
   it("shows branded package and binary commands in help", () => {
     expect(getHelpText()).toContain(`pnpm dlx ${OCTO_PACKAGE_NAME}@latest`);
     expect(getHelpText()).toContain("octo [--context-repo <git-url>]");
-    expect(getHelpText()).toContain("Included in the published package");
+    expect(getHelpText()).toContain("Official context factory");
   });
 });
 
 describe("resolveContextRepository", () => {
-  it("uses the bundled context factory by default", () => {
-    expect(resolveContextRepository(["node", "cli.js"], {})).toBeUndefined();
+  it("uses the official context repository by default", () => {
+    expect(resolveContextRepository(["node", "cli.js"], {})).toBe(OFFICIAL_CONTEXT_REPOSITORY);
   });
 
   it("allows an environment override", () => {

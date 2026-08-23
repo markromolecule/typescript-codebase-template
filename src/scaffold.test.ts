@@ -2,7 +2,8 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { CONTEXT_VALIDATE_SCRIPT, getContextPullScript } from "./constants.js";
+import { CONTEXT_PULL_SCRIPT, CONTEXT_VALIDATE_SCRIPT, OFFICIAL_CONTEXT_REPOSITORY } from "./constants.js";
+import { parseJsonc, stripJsonc } from "./files.js";
 import { scaffoldProject } from "./scaffold.js";
 
 describe("scaffoldProject", () => {
@@ -15,7 +16,6 @@ describe("scaffoldProject", () => {
         mode: "monorepo",
         frontend: "vite",
         backend: "hono",
-        contextSync: "bundled",
       },
       {
         cwd,
@@ -24,7 +24,7 @@ describe("scaffoldProject", () => {
     );
 
     const packageJson = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
-    expect(packageJson.scripts["context:pull"]).toBe(getContextPullScript("bundled"));
+    expect(packageJson.scripts["context:pull"]).toBe(CONTEXT_PULL_SCRIPT);
     expect(packageJson.scripts["context:validate"]).toBe(CONTEXT_VALIDATE_SCRIPT);
     expect(await readFile(join(root, "pnpm-workspace.yaml"), "utf8")).toContain('"apps/*"');
     expect(await readFile(join(root, "apps/web/src/main.tsx"), "utf8")).toContain("createRoot");
@@ -65,9 +65,11 @@ describe("scaffoldProject", () => {
     expect(await readFile(join(root, ".github/workflows/deploy.yml"), "utf8")).toContain("workflow_dispatch");
     expect(await readFile(join(root, ".github/dependabot.yml"), "utf8")).toContain("package-ecosystem: github-actions");
     expect(await readFile(join(root, "AGENTS.md"), "utf8")).toContain("context-factory/orchestrator/SHARED.md");
-    expect(await readFile(join(root, "context-factory/context-manifest.json"), "utf8")).toContain('"contextVersion": "3.6.0"');
     expect(await readFile(join(root, "docs/design-pattern.md"), "utf8")).toContain("Framework default");
-    expect(calls).toEqual([]);
+    expect(calls).toEqual([
+      "git init",
+      `git submodule add ${OFFICIAL_CONTEXT_REPOSITORY} context-factory`,
+    ]);
   });
 
   it("routes shadcn/ui into packages/ui and configures Astro as its consumer", async () => {
@@ -79,7 +81,6 @@ describe("scaffoldProject", () => {
         frontend: "astro",
         backend: "hono",
         styling: "shadcn",
-        contextSync: "bundled",
       },
       { cwd, run: async () => undefined },
     );
@@ -109,7 +110,6 @@ describe("scaffoldProject", () => {
         frontend: "next",
         backend: "express",
         styling: "daisyui",
-        contextSync: "bundled",
       },
       { cwd, run: async () => undefined },
     );
@@ -132,7 +132,6 @@ describe("scaffoldProject", () => {
         frontend: "vite",
         backend: "hono",
         styling: "bootstrap",
-        contextSync: "bundled",
       },
       { cwd, run: async () => undefined },
     );
@@ -157,7 +156,6 @@ describe("scaffoldProject", () => {
         frontend: "vite",
         backend: "hono",
         styling: "tailwind",
-        contextSync: "bundled",
       },
       { cwd, run: async () => undefined },
     );
@@ -180,11 +178,11 @@ describe("scaffoldProject", () => {
         mode: "standard",
         framework: "vite",
         styling: "shadcn",
-        contextSync: "bundled",
       },
       {
         cwd,
-        run: async (_command, args, parent) => {
+        run: async (command, args, parent) => {
+          if (command === "git") return;
           const projectRoot = join(parent, args[2]);
           await mkdir(join(projectRoot, "src"), { recursive: true });
           await writeFile(join(projectRoot, "package.json"), JSON.stringify({
@@ -217,14 +215,14 @@ describe("scaffoldProject", () => {
   it("creates a standard backend without workspace files", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "standard-template-"));
     const root = await scaffoldProject(
-      { projectName: "api", mode: "standard", framework: "express", contextSync: "bundled" },
+      { projectName: "api", mode: "standard", framework: "express" },
       { cwd, run: async () => undefined },
     );
     const packageJson = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
     expect(packageJson.dependencies.express).toBe("latest");
     expect(packageJson.dependencies.zod).toBe("latest");
     expect(JSON.parse(await readFile(join(root, "tsconfig.json"), "utf8")).compilerOptions.types).toEqual(["node"]);
-    expect(packageJson.scripts["context:pull"]).toBe(getContextPullScript("bundled"));
+    expect(packageJson.scripts["context:pull"]).toBe(CONTEXT_PULL_SCRIPT);
     expect(packageJson.scripts["context:validate"]).toBe(CONTEXT_VALIDATE_SCRIPT);
     expect(await readFile(join(root, ".npmrc"), "utf8")).toContain("engine-strict=true");
     expect(await readFile(join(root, ".nvmrc"), "utf8")).toBe("20\n");
@@ -245,25 +243,42 @@ describe("scaffoldProject", () => {
     const cwd = await mkdtemp(join(tmpdir(), "guard-template-"));
     const options = { cwd, run: async () => undefined };
     await expect(scaffoldProject(
-      { projectName: "../escape", mode: "standard", framework: "express", contextSync: "bundled" },
+      { projectName: "../escape", mode: "standard", framework: "express" },
       options,
     )).rejects.toThrow("Invalid project name");
     await scaffoldProject(
-      { projectName: "same", mode: "standard", framework: "express", contextSync: "bundled" },
+      { projectName: "same", mode: "standard", framework: "express" },
       options,
     );
     await expect(scaffoldProject(
-      { projectName: "same", mode: "standard", framework: "express", contextSync: "bundled" },
+      { projectName: "same", mode: "standard", framework: "express" },
       options,
     )).rejects.toThrow("Target already exists");
   });
 
-  it("requires a repository URL for Git-backed context sync", async () => {
+  it("requires a repository URL for Git-backed context sync if empty", async () => {
     const cwd = await mkdtemp(join(tmpdir(), "git-context-template-"));
     await expect(scaffoldProject(
-      { projectName: "submodule-project", mode: "standard", framework: "express", contextSync: "submodule" },
-      { cwd, run: async () => undefined },
-    )).rejects.toThrow("A context-factory repository URL is required for Git-backed sync.");
+      { projectName: "submodule-project", mode: "standard", framework: "express" },
+      { cwd, contextRepository: "", run: async () => undefined },
+    )).rejects.toThrow("A context-factory repository URL is required for Git submodule sync.");
+  });
+
+  it("allows overriding the context-factory repository URL", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "git-custom-repo-"));
+    const calls: string[] = [];
+    await scaffoldProject(
+      { projectName: "custom-repo-project", mode: "standard", framework: "express" },
+      {
+        cwd,
+        contextRepository: "https://example.com/custom/context-factory.git",
+        run: async (command, args) => { calls.push([command, ...args].join(" ")); },
+      },
+    );
+    expect(calls).toEqual([
+      "git init",
+      "git submodule add https://example.com/custom/context-factory.git context-factory",
+    ]);
   });
 
   it("initializes packages/ui with React support by default in monorepo regardless of styling", async () => {
@@ -275,7 +290,6 @@ describe("scaffoldProject", () => {
         frontend: "vite",
         backend: "hono",
         styling: "none",
-        contextSync: "bundled",
       },
       { cwd, run: async () => undefined },
     );
@@ -296,6 +310,7 @@ describe("scaffoldProject", () => {
     const recordedCalls: { command: string; args: string[] }[] = [];
     const mockRun = async (command: string, args: string[], parent: string) => {
       recordedCalls.push({ command, args });
+      if (command === "git") return;
       const projectRoot = join(parent, args[2]);
       await mkdir(projectRoot, { recursive: true });
       await writeFile(
@@ -305,34 +320,155 @@ describe("scaffoldProject", () => {
     };
 
     await scaffoldProject(
-      { projectName: "next-fast", mode: "standard", framework: "next", contextSync: "bundled" },
+      { projectName: "next-fast", mode: "standard", framework: "next" },
       { cwd, run: mockRun },
     );
-    expect(recordedCalls[0].command).toBe("pnpm");
-    expect(recordedCalls[0].args).toContain("create-next-app@latest");
-    expect(recordedCalls[0].args).toContain("--skip-install");
-    expect(recordedCalls[0].args).toContain("--disable-git");
-    expect(recordedCalls[0].args).toContain("--yes");
 
     await scaffoldProject(
-      { projectName: "astro-fast", mode: "standard", framework: "astro", contextSync: "bundled" },
+      { projectName: "astro-fast", mode: "standard", framework: "astro" },
       { cwd, run: mockRun },
     );
-    expect(recordedCalls[1].command).toBe("pnpm");
-    expect(recordedCalls[1].args).toContain("create-astro@latest");
-    expect(recordedCalls[1].args).toContain("--skip-houston");
-    expect(recordedCalls[1].args).toContain("--no-install");
-    expect(recordedCalls[1].args).toContain("--no-git");
-    expect(recordedCalls[1].args).toContain("--yes");
-    expect(recordedCalls[1].args).not.toContain("--typescript");
 
     await scaffoldProject(
-      { projectName: "vite-fast", mode: "standard", framework: "vite", contextSync: "bundled" },
+      { projectName: "vite-fast", mode: "standard", framework: "vite" },
       { cwd, run: mockRun },
     );
-    expect(recordedCalls[2].command).toBe("pnpm");
-    expect(recordedCalls[2].args).toContain("create-vite@latest");
-    expect(recordedCalls[2].args).toContain("--template");
-    expect(recordedCalls[2].args).toContain("react-ts");
+
+    const pnpmCalls = recordedCalls.filter((c) => c.command === "pnpm");
+    expect(pnpmCalls[0].args).toContain("create-next-app@latest");
+    expect(pnpmCalls[0].args).toContain("--skip-install");
+    expect(pnpmCalls[0].args).toContain("--disable-git");
+    expect(pnpmCalls[0].args).toContain("--yes");
+
+    expect(pnpmCalls[1].args).toContain("create-astro@latest");
+    expect(pnpmCalls[1].args).toContain("--skip-houston");
+    expect(pnpmCalls[1].args).toContain("--no-install");
+    expect(pnpmCalls[1].args).toContain("--no-git");
+    expect(pnpmCalls[1].args).toContain("--yes");
+    expect(pnpmCalls[1].args).not.toContain("--typescript");
+
+    expect(pnpmCalls[2].args).toContain("create-vite@latest");
+    expect(pnpmCalls[2].args).toContain("--template");
+    expect(pnpmCalls[2].args).toContain("react-ts");
+  });
+
+  it("handles create-vite tsconfig.app.json with comments and trailing commas", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "vite-comments-"));
+    const viteTsconfigWithComments = `{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+  },
+  "include": ["src"],
+}`;
+
+    const root = await scaffoldProject(
+      {
+        projectName: "ruth-loan-calculator",
+        mode: "standard",
+        framework: "vite",
+        styling: "shadcn",
+      },
+      {
+        cwd,
+        run: async (command, args, parent) => {
+          if (command === "git") return;
+          const projectRoot = join(parent, args[2]);
+          await mkdir(join(projectRoot, "src"), { recursive: true });
+          await writeFile(
+            join(projectRoot, "package.json"),
+            JSON.stringify({
+              name: "ruth-loan-calculator",
+              private: true,
+              scripts: { dev: "vite", build: "vite build" },
+              dependencies: { react: "^19.0.0", "react-dom": "^19.0.0" },
+              devDependencies: { "@vitejs/plugin-react": "^4.3.4", vite: "^6.0.0", typescript: "~5.7.2" },
+            }),
+          );
+          await writeFile(join(projectRoot, "src/main.tsx"), 'import "./index.css";');
+          await writeFile(join(projectRoot, "src/index.css"), "");
+          await writeFile(
+            join(projectRoot, "tsconfig.json"),
+            JSON.stringify({ references: [{ path: "./tsconfig.app.json" }] }),
+          );
+          await writeFile(join(projectRoot, "tsconfig.app.json"), viteTsconfigWithComments);
+        },
+      },
+    );
+
+    const tsconfigApp = JSON.parse(await readFile(join(root, "tsconfig.app.json"), "utf8"));
+    expect(tsconfigApp.compilerOptions.paths["@/*"]).toEqual(["./src/*"]);
+    expect(tsconfigApp.compilerOptions.moduleResolution).toBe("bundler");
+    const packageJson = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+    expect(packageJson.dependencies.shadcn).toBe("latest");
+  });
+});
+
+describe("JSONC parser", () => {
+  it("strips single-line and multi-line comments and trailing commas", () => {
+    const raw = `
+    // Leading comment
+    {
+      "name": "test", /* inline comment */
+      "nested": {
+        "url": "https://example.com/api?q=1//not-a-comment", // line comment
+        "blockInStr": "/* also not comment */",
+        "trailingCommaInStr": "a, } b, ]",
+        "items": [
+          1,
+          2,
+          /* comment before trailing comma */
+          3, // trailing comma after this
+        ],
+      },
+    }
+    `;
+    const parsed = parseJsonc<{
+      name: string;
+      nested: {
+        url: string;
+        blockInStr: string;
+        trailingCommaInStr: string;
+        items: number[];
+      };
+    }>(raw);
+
+    expect(parsed.name).toBe("test");
+    expect(parsed.nested.url).toBe("https://example.com/api?q=1//not-a-comment");
+    expect(parsed.nested.blockInStr).toBe("/* also not comment */");
+    expect(parsed.nested.trailingCommaInStr).toBe("a, } b, ]");
+    expect(parsed.nested.items).toEqual([1, 2, 3]);
+  });
+
+  it("handles BOM gracefully", () => {
+    const raw = `\uFEFF{ "bom": true }`;
+    expect(parseJsonc<{ bom: boolean }>(raw)).toEqual({ bom: true });
+  });
+
+  it("handles escaped quotes properly in strings", () => {
+    const raw = `{"quote": "escaped \\" quote // not comment", "next": 1,}`;
+    expect(parseJsonc<{ quote: string; next: number }>(raw)).toEqual({
+      quote: 'escaped " quote // not comment',
+      next: 1,
+    });
   });
 });

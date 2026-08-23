@@ -1,6 +1,6 @@
 # 🐙 Octo CLI
 
-Octo is an interactive TypeScript CLI that creates either a pnpm + Turborepo workspace or a framework-standard single application. Every generated project includes a reusable bundled `context-factory` snapshot and a `context:pull` script.
+Octo is an interactive TypeScript CLI that creates either a pnpm + Turborepo workspace or a framework-standard single application. Every generated project links the official public `context-factory` as a Git submodule and includes a `context:pull` script.
 
 ## Use
 
@@ -10,7 +10,7 @@ Run the published CLI from any directory:
 pnpm dlx @markromolecule/octo@latest
 ```
 
-By default, the CLI copies the bundled `context-factory` that ships inside the npm package. Override it only when using a fork or private factory:
+By default, the CLI adds `context-factory` as a Git submodule from the official public repository (`https://github.com/markromolecule/context-factory.git`). Override it only when using a fork or private factory:
 
 ```sh
 pnpm dlx @markromolecule/octo@latest \
@@ -27,9 +27,9 @@ octo
 
 Octo prints its package version in the terminal as `🐙 Octo CLI v<version>`. The former `@markromolecule/create-monorepo-template` package remains the legacy package; new releases use `@markromolecule/octo`.
 
-You may also set `CONTEXT_FACTORY_REPO` instead of passing the option. An explicit `--context-repo` takes precedence over the environment variable. Git-backed sync modes use the provided repository; bundled mode does not require network access.
+You may also set `CONTEXT_FACTORY_REPO` instead of passing the option. An explicit `--context-repo` takes precedence over the environment variable.
 
-The prompts ask for the project name, Monorepo or Standard structure, the applicable framework choices, a frontend styling/component system, and the context-factory delivery method. Frontend projects can select shadcn/ui, daisyUI, Bootstrap, Tailwind CSS, or the framework default.
+The prompts ask for the project name, Monorepo or Standard structure, the applicable framework choices, and a frontend styling/component system. Frontend projects can select shadcn/ui, daisyUI, Bootstrap, Tailwind CSS, or the framework default.
 
 ## Generated modes
 
@@ -47,11 +47,12 @@ Both modes also create project infrastructure:
 
 - `.nvmrc` targeting Node.js 20
 - `.npmrc` with pnpm workspace and peer-dependency defaults
-- `.github/workflows/ci.yml` for install, generation, typecheck, test, and build checks
+- `.github/workflows/ci.yml` for install, generation, typecheck, test, and build checks (configured with recursive submodule checkout)
 - `.github/workflows/deploy.yml` as a safe manual deployment placeholder
 - `.github/workflows/README.md` as the deployment-workflow handoff point
 - `.github/dependabot.yml` for weekly npm and GitHub Actions updates
 - root `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` pointers so tools discover the nested factory
+- `context:pull` (`git submodule update --remote --merge`) to pull the latest upstream context rules, skills, and agents
 - `context:validate` to check the factory manifest, skills, links, and Obsidian configuration
 
 Backend starters include `src/modules/sample/` with action-first files such as `create-sample.service.ts`, `create-sample.controller.ts`, and `create-sample.data.ts`. Use singular feature names for one-record operations and plural names such as `delete-samples.service.ts` for true bulk operations.
@@ -60,11 +61,13 @@ Backend starters include `src/modules/sample/` with action-first files such as `
 
 Selected styling dependencies and reusable primitives are placed in `packages/ui` for Monorepos, while framework build adapters remain in `apps/web`. Standard projects keep the same configuration in the application root. shadcn/ui also receives framework-aware `components.json` aliases so components added from `apps/web` are routed into `packages/ui`.
 
-## Context delivery behavior
+## Context factory submodule
 
-- **Bundled Snapshot** copies the packaged `context-factory/` into the generated project with no Git or network dependency.
-- **Git Submodule** initializes Git when needed and adds `context-factory/` as a submodule. `pnpm context:pull` updates it.
-- **Direct Clone (Standalone)** clones the repository and removes its nested `.git` directory. Since removing Git metadata prevents a later `git pull`, refresh standalone copies by replacing `context-factory/` from upstream. The generated `context:pull` script explains that limitation.
+Every generated project initializes Git (if not present) and links `context-factory` via `git submodule add`.
+
+- Run `pnpm context:pull` to fetch the latest context updates from upstream.
+- Run `pnpm context:validate` to verify context manifest integrity.
+- Run `node context-factory/scripts/context.mjs <command>` for task scaffolding (`task:new`), doctor checks, and evaluations.
 
 ## Develop
 

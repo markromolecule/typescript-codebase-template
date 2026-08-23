@@ -18,9 +18,10 @@ function optionValue(name: string, argv: string[]): string | undefined {
 export function resolveContextRepository(
   argv: string[] = process.argv,
   environment: NodeJS.ProcessEnv = process.env,
-): string | undefined {
+): string {
   return optionValue("--context-repo", argv)
-    ?? environment.CONTEXT_FACTORY_REPO;
+    ?? environment.CONTEXT_FACTORY_REPO
+    ?? OFFICIAL_CONTEXT_REPOSITORY;
 }
 
 export function getHelpText(): string {
@@ -34,10 +35,7 @@ Options:
   -h, --help       Show help
   -v, --version    Show the Octo CLI version
 
-Bundled context factory:
-  Included in the published package
-
-Git-backed override:
+Official context factory:
   ${OFFICIAL_CONTEXT_REPOSITORY}
 
 Environment:
@@ -53,7 +51,7 @@ export async function main(): Promise<void> {
     console.log(getHelpText());
     return;
   }
-  const contextRepository = resolveContextRepository() ?? OFFICIAL_CONTEXT_REPOSITORY;
+  const contextRepository = resolveContextRepository();
   const answers = await collectAnswers();
   const spinner = p.spinner();
   spinner.start("Creating project");

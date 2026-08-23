@@ -1,14 +1,14 @@
-import { access, cp, mkdir, readFile, rm } from "node:fs/promises";
+import { access, mkdir } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { execa } from "execa";
 import {
+  CONTEXT_PULL_SCRIPT,
   CONTEXT_VALIDATE_SCRIPT,
   frameworkLabel,
-  getContextPullScript,
+  OFFICIAL_CONTEXT_REPOSITORY,
   PROJECT_NAME_PATTERN,
 } from "./constants.js";
-import { addPackageScript, writeJson, writeText } from "./files.js";
+import { addPackageScript, readJson, writeJson, writeText } from "./files.js";
 import { configureStyling, getStylingLabel } from "./styling.js";
 import {
   createBackend,
@@ -37,8 +37,6 @@ const defaultRunner: Runner = async (command, args, cwd) => {
     throw error;
   }
 };
-
-const bundledContextFactoryPath = fileURLToPath(new URL("../context-factory", import.meta.url));
 
 async function exists(path: string): Promise<boolean> {
   try {
@@ -214,25 +212,14 @@ async function runOfficialGenerator(
 
 async function installContextFactory(
   root: string,
-  method: Answers["contextSync"],
-  repository: string | undefined,
+  repository: string,
   run: Runner,
 ): Promise<void> {
-  if (method === "bundled") {
-    await cp(bundledContextFactoryPath, join(root, "context-factory"), { recursive: true });
-    await rm(join(root, "context-factory/.git"), { recursive: true, force: true });
-    return;
-  }
   if (!repository?.trim()) {
-    throw new Error("A context-factory repository URL is required for Git-backed sync.");
+    throw new Error("A context-factory repository URL is required for Git submodule sync.");
   }
-  if (method === "submodule") {
-    if (!(await exists(join(root, ".git")))) await run("git", ["init"], root);
-    await run("git", ["submodule", "add", repository, "context-factory"], root);
-  } else {
-    await run("git", ["clone", repository, "context-factory"], root);
-    await rm(join(root, "context-factory/.git"), { recursive: true, force: true });
-  }
+  if (!(await exists(join(root, ".git")))) await run("git", ["init"], root);
+  await run("git", ["submodule", "add", repository, "context-factory"], root);
 }
 
 async function createContextEntrypoints(root: string, answers: Answers): Promise<void> {
@@ -297,11 +284,7 @@ async function writeReadme(root: string, answers: Answers): Promise<void> {
   const stylingNote = framework === "vite" || framework === "next" || framework === "astro"
     ? `\n\n## Frontend design system\n\nThis project uses **${getStylingLabel(answers.styling)}**. Read \`docs/design-pattern.md\` before changing frontend components or pages.${answers.mode === "monorepo" ? " Shared UI primitives and styling dependencies are owned by `packages/ui`." : ""}`
     : "";
-  const contextNote = answers.contextSync === "submodule"
-    ? "Use `pnpm context:pull` to update the Git submodule, then run `pnpm context:validate`."
-    : answers.contextSync === "standalone"
-      ? "This project contains a standalone `context-factory/` snapshot with nested Git metadata removed. Refresh it by replacing `context-factory/` from the configured upstream repository, then run `pnpm context:validate`."
-      : "This project contains the bundled `context-factory/` snapshot that shipped with Octo. Refresh it by replacing `context-factory/` from upstream or rerunning Octo with `--context-repo` for Git-backed sync, then run `pnpm context:validate`.";
+  const contextNote = "Use `pnpm context:pull` to update the Git submodule, then run `pnpm context:validate`.";
   await writeText(join(root, "README.md"), `# ${answers.projectName}\n\n${structure}${stylingNote}\n\n## Start\n\n\`\`\`sh\npnpm install\n${devCommand}\n\`\`\`\n\n## Context factory\n\nValidate the included rules, skills, and workflows with:\n\n\`\`\`sh\npnpm context:validate\n\`\`\`\n\nOpen \`context-factory/\` as the Obsidian vault to navigate the complete rules, skills, orchestrators, tasks, and decisions graph.\n\n> ${contextNote}\n`);
 }
 
@@ -321,9 +304,9 @@ export async function scaffoldProject(answers: Answers, options: ScaffoldOptions
     throw new Error("Framework generator completed without creating package.json.");
   }
   await configureStyling(root, answers);
-  await addPackageScript(packageJsonPath, "context:pull", getContextPullScript(answers.contextSync));
+  await addPackageScript(packageJsonPath, "context:pull", CONTEXT_PULL_SCRIPT);
   await createProjectInfrastructure(root);
-  await installContextFactory(root, answers.contextSync, options.contextRepository, run);
+  await installContextFactory(root, options.contextRepository ?? OFFICIAL_CONTEXT_REPOSITORY, run);
   await addPackageScript(packageJsonPath, "context:validate", CONTEXT_VALIDATE_SCRIPT);
   await createContextEntrypoints(root, answers);
   await writeDesignPatternProfile(root, answers);
@@ -332,5 +315,5 @@ export async function scaffoldProject(answers: Answers, options: ScaffoldOptions
 }
 
 export async function readGeneratedPackage(root: string): Promise<Record<string, unknown>> {
-  return JSON.parse(await readFile(join(root, "package.json"), "utf8")) as Record<string, unknown>;
+  return readJson(join(root, "package.json"));
 }
