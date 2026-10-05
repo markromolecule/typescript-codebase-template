@@ -197,7 +197,7 @@ export function createSampleRoutes(store: SampleStore): Router {
 }
 
 export async function createFrontend(root: string, framework: FrontendFramework): Promise<void> {
-  const dir = join(root, "apps/web");
+  const dir = join(root, "app/web");
   if (framework === "vite") {
     await writeJson(join(dir, "package.json"), {
       name: "@workspace/web",
@@ -254,7 +254,7 @@ export async function createFrontend(root: string, framework: FrontendFramework)
 }
 
 export async function createBackend(root: string, framework: BackendFramework): Promise<void> {
-  const dir = join(root, "apps/api");
+  const dir = join(root, "app/api");
   const isHono = framework === "hono";
   await writeJson(join(dir, "package.json"), {
     name: "@workspace/api",

@@ -1,14 +1,17 @@
+import { fileURLToPath } from "node:url";
 import { access, mkdir } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { execa } from "execa";
 import {
+  CONTEXT_BRIDGE_SCRIPT,
+  CONTEXT_DOCTOR_SCRIPT,
   CONTEXT_PULL_SCRIPT,
   CONTEXT_VALIDATE_SCRIPT,
   frameworkLabel,
-  OFFICIAL_CONTEXT_REPOSITORY,
   PROJECT_NAME_PATTERN,
+  WORKSPACE_APPS_GLOB,
 } from "./constants.js";
-import { addPackageScript, readJson, writeJson, writeText } from "./files.js";
+import { addPackageScript, copyDirectory, readJson, writeJson, writeText } from "./files.js";
 import { configureStyling, getStylingLabel } from "./styling.js";
 import {
   createBackend,
@@ -17,7 +20,7 @@ import {
   createMinimalStandard,
   createSharedPackages,
 } from "./templates.js";
-import type { Answers, Framework, ScaffoldOptions } from "./types.js";
+import type { Answers, BackendFramework, FrontendFramework, ScaffoldOptions } from "./types.js";
 
 type Runner = NonNullable<ScaffoldOptions["run"]>;
 
@@ -47,19 +50,170 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Validation
+// ---------------------------------------------------------------------------
+
 function assertValidAnswers(answers: Answers): void {
   if (!PROJECT_NAME_PATTERN.test(answers.projectName)) {
     throw new Error(`Invalid project name: ${answers.projectName}`);
   }
-  if (answers.mode === "monorepo" && (!answers.frontend || !answers.backend)) {
-    throw new Error("Monorepo mode requires frontend and backend frameworks.");
+  if (answers.architecture === "monorepo" && (!answers.frontend || !answers.backend)) {
+    throw new Error("Monorepo architecture requires frontend and backend frameworks.");
   }
-  if (answers.mode === "standard" && !answers.framework) {
-    throw new Error("Standard mode requires one framework.");
+  if (answers.architecture === "frontend" && !answers.frontend) {
+    throw new Error("Frontend architecture requires a frontend framework.");
+  }
+  if (answers.architecture === "backend" && !answers.backend) {
+    throw new Error("Backend architecture requires a backend framework.");
   }
 }
 
-async function createMonorepo(root: string, answers: Answers): Promise<void> {
+// ---------------------------------------------------------------------------
+// Root package.json (proxy scripts + context scripts) for single-app layout
+// ---------------------------------------------------------------------------
+
+async function writeRootPackageJson(
+  root: string,
+  projectName: string,
+  architecture: "frontend" | "backend",
+): Promise<void> {
+  const devScript = architecture === "frontend"
+    ? "pnpm --prefix app dev"
+    : "pnpm --prefix app dev";
+  await writeJson(join(root, "package.json"), {
+    name: projectName,
+    version: "0.1.0",
+    private: true,
+    scripts: {
+      dev: devScript,
+      build: "pnpm --prefix app build",
+      start: "pnpm --prefix app start",
+      test: "pnpm --prefix app test",
+      "context:pull": CONTEXT_PULL_SCRIPT,
+      "context:bridge": CONTEXT_BRIDGE_SCRIPT,
+      "context:validate": CONTEXT_VALIDATE_SCRIPT,
+      "context:doctor": CONTEXT_DOCTOR_SCRIPT,
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Frontend single-app generation (app/ directory)
+// ---------------------------------------------------------------------------
+
+async function createFrontendApp(root: string, answers: Answers): Promise<void> {
+  const appDir = join(root, "app");
+  await mkdir(appDir, { recursive: true });
+  // createFrontend expects the workspace root and will place files in app/web
+  // For single-app, we adapt: generate directly into appDir
+  const framework = answers.frontend as FrontendFramework;
+  await createStandaloneFrontend(appDir, framework);
+}
+
+async function createStandaloneFrontend(appDir: string, framework: FrontendFramework): Promise<void> {
+  if (framework === "vite") {
+    await writeJson(join(appDir, "package.json"), {
+      name: "app",
+      private: true,
+      version: "0.0.0",
+      type: "module",
+      scripts: { dev: "vite", build: "tsc -b && vite build", start: "vite preview", test: "vitest" },
+      dependencies: { react: "latest", "react-dom": "latest" },
+      devDependencies: {
+        "@types/react": "latest",
+        "@types/react-dom": "latest",
+        "@vitejs/plugin-react": "latest",
+        typescript: "^5.9.3",
+        vite: "latest",
+      },
+    });
+    await writeJson(join(appDir, "tsconfig.json"), {
+      compilerOptions: {
+        target: "ES2022",
+        lib: ["ES2022", "DOM", "DOM.Iterable"],
+        module: "ESNext",
+        moduleResolution: "Bundler",
+        jsx: "react-jsx",
+        strict: true,
+        skipLibCheck: true,
+        noEmit: true,
+      },
+      include: ["src", "vite.config.ts"],
+    });
+    await writeText(join(appDir, "vite.config.ts"), 'import { defineConfig } from "vite";\nimport react from "@vitejs/plugin-react";\nexport default defineConfig({ plugins: [react()] });');
+    await writeText(join(appDir, "index.html"), '<div id="root"></div><script type="module" src="/src/main.tsx"></script>');
+    await writeText(join(appDir, "src/main.tsx"), 'import React from "react";\nimport { createRoot } from "react-dom/client";\nimport "./style.css";\n\ncreateRoot(document.getElementById("root")!).render(\n  <React.StrictMode>\n    <main>\n      <h1>React + Vite</h1>\n      <p>Your project is ready.</p>\n    </main>\n  </React.StrictMode>,\n);');
+    await writeText(join(appDir, "src/style.css"), ':root { font-family: system-ui, sans-serif; color-scheme: light dark; }\nbody { margin: 0; }\nmain { max-width: 48rem; margin: 5rem auto; padding: 2rem; }');
+    return;
+  }
+  if (framework === "next") {
+    await writeJson(join(appDir, "package.json"), {
+      name: "app",
+      private: true,
+      version: "0.0.0",
+      scripts: { dev: "next dev", build: "next build", start: "next start", lint: "eslint ." },
+      dependencies: { next: "latest", react: "latest", "react-dom": "latest" },
+      devDependencies: {
+        "@types/node": "latest",
+        "@types/react": "latest",
+        "@types/react-dom": "latest",
+        typescript: "^5.9.3",
+      },
+    });
+    await writeJson(join(appDir, "tsconfig.json"), {
+      compilerOptions: {
+        target: "ES2022",
+        lib: ["ES2022", "DOM", "DOM.Iterable"],
+        module: "ESNext",
+        moduleResolution: "Bundler",
+        jsx: "preserve",
+        strict: true,
+        skipLibCheck: true,
+        noEmit: true,
+        plugins: [{ name: "next" }],
+        paths: { "@/*": ["./src/*"] },
+      },
+      include: ["next-env.d.ts", ".next/types/**/*.ts", "**/*.ts", "**/*.tsx"],
+      exclude: ["node_modules"],
+    });
+    await writeText(join(appDir, "next-env.d.ts"), '/// <reference types="next" />\n/// <reference types="next/image-types/global" />');
+    await writeText(join(appDir, "next.config.ts"), 'import type { NextConfig } from "next";\nconst config: NextConfig = {};\nexport default config;');
+    await writeText(join(appDir, "src/app/layout.tsx"), 'import type { ReactNode } from "react";\nexport default function Layout({ children }: { children: ReactNode }) {\n  return <html lang="en"><body>{children}</body></html>;\n}');
+    await writeText(join(appDir, "src/app/page.tsx"), 'export default function Page() {\n  return <main><h1>Next.js</h1><p>Your project is ready.</p></main>;\n}');
+    await writeText(join(appDir, "src/app/globals.css"), ':root { font-family: system-ui, sans-serif; }\nbody { margin: 0; }\nmain { max-width: 48rem; margin: 5rem auto; padding: 2rem; }');
+    return;
+  }
+  // astro
+  await writeJson(join(appDir, "package.json"), {
+    name: "app",
+    private: true,
+    version: "0.0.0",
+    type: "module",
+    scripts: { dev: "astro dev", build: "astro build", start: "astro preview", preview: "astro preview" },
+    dependencies: { astro: "latest" },
+    devDependencies: { typescript: "^5.9.3" },
+  });
+  await writeJson(join(appDir, "tsconfig.json"), { extends: "astro/tsconfigs/strict" });
+  await writeText(join(appDir, "astro.config.mjs"), 'import { defineConfig } from "astro/config";\nexport default defineConfig({});');
+  await writeText(join(appDir, "src/pages/index.astro"), '---\nconst title = "Astro";\n---\n<html lang="en"><head><meta charset="utf-8" /><title>{title}</title></head><body><main><h1>{title}</h1><p>Your project is ready.</p></main></body></html>');
+}
+
+// ---------------------------------------------------------------------------
+// Backend single-app generation (app/ directory)
+// ---------------------------------------------------------------------------
+
+async function createBackendApp(root: string, answers: Answers): Promise<void> {
+  const appDir = join(root, "app");
+  await mkdir(appDir, { recursive: true });
+  await createMinimalStandard(appDir, answers.backend as BackendFramework);
+}
+
+// ---------------------------------------------------------------------------
+// Monorepo generation (app/web + app/api + packages/)
+// ---------------------------------------------------------------------------
+
+async function createMonorepoApp(root: string, answers: Answers): Promise<void> {
   await mkdir(root, { recursive: true });
   await writeJson(join(root, "package.json"), {
     name: answers.projectName,
@@ -70,10 +224,17 @@ async function createMonorepo(root: string, answers: Answers): Promise<void> {
       build: "turbo run build",
       dev: "turbo run dev",
       "db:generate": "turbo run db:generate",
+      "context:pull": CONTEXT_PULL_SCRIPT,
+      "context:bridge": CONTEXT_BRIDGE_SCRIPT,
+      "context:validate": CONTEXT_VALIDATE_SCRIPT,
+      "context:doctor": CONTEXT_DOCTOR_SCRIPT,
     },
     devDependencies: { turbo: "latest", typescript: "^5.9.3" },
   });
-  await writeText(join(root, "pnpm-workspace.yaml"), 'packages:\n  - "apps/*"\n  - "packages/*"');
+  await writeText(
+    join(root, "pnpm-workspace.yaml"),
+    `packages:\n  - "${WORKSPACE_APPS_GLOB}"\n  - "packages/*"`,
+  );
   await writeJson(join(root, "turbo.json"), {
     $schema: "https://turbo.build/schema.json",
     tasks: {
@@ -88,8 +249,12 @@ async function createMonorepo(root: string, answers: Answers): Promise<void> {
     createSharedPackages(root),
     createDatabase(root),
   ]);
-  await writeText(join(root, ".gitignore"), 'node_modules/\n.turbo/\n.env\n.next/\ndist/');
+  await writeText(join(root, ".gitignore"), "node_modules/\n.turbo/\n.env\n.next/\ndist/");
 }
+
+// ---------------------------------------------------------------------------
+// Shared infrastructure
+// ---------------------------------------------------------------------------
 
 async function createProjectInfrastructure(root: string): Promise<void> {
   await Promise.all([
@@ -115,120 +280,55 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          submodules: recursive
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
+          submodules: true
+      - uses: pnpm/action-setup@v4
         with:
-          version: 10.28.1
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+          version: 10
+      - uses: actions/setup-node@v4
         with:
-          node-version-file: .nvmrc
+          node-version: 20
           cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Generate database types when configured
-        run: pnpm run --if-present db:generate
-
-      - name: Typecheck when configured
-        run: pnpm run --if-present typecheck
-
-      - name: Test when configured
-        run: pnpm run --if-present test
-
-      - name: Build
-        run: pnpm run build
-`,
-    ),
-    writeText(
-      join(root, ".github/workflows/README.md"),
-      "# Workflows\n\n`ci.yml` installs dependencies, generates database types when available, typechecks, tests, and builds the project. Add deployment workflows here after configuring the target host and repository secrets.",
-    ),
-    writeText(
-      join(root, ".github/workflows/deploy.yml"),
-      `name: Deploy
-
-on:
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
-jobs:
-  prepare:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Deployment configuration required
-        run: echo "Configure the target host, repository environment, and secrets before adding deployment commands."
-`,
-    ),
-    writeText(
-      join(root, ".github/dependabot.yml"),
-      `version: 2
-updates:
-  - package-ecosystem: npm
-    directory: /
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 10
-
-  - package-ecosystem: github-actions
-    directory: /
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
 `,
     ),
   ]);
 }
 
-async function runOfficialGenerator(
-  parent: string,
-  projectName: string,
-  framework: Framework,
-  run: Runner,
-): Promise<void> {
-  if (framework === "vite") {
-    await run("pnpm", ["dlx", "create-vite@latest", projectName, "--template", "react-ts"], parent);
-  } else if (framework === "next") {
-    await run("pnpm", ["dlx", "create-next-app@latest", projectName, "--ts", "--eslint", "--app", "--src-dir", "--use-pnpm", "--no-tailwind", "--import-alias", "@/*", "--skip-install", "--disable-git", "--yes"], parent);
-  } else if (framework === "astro") {
-    await run("pnpm", ["dlx", "create-astro@latest", projectName, "--template", "minimal", "--no-install", "--no-git", "--skip-houston", "--yes"], parent);
-  } else {
-    await mkdir(join(parent, projectName), { recursive: true });
-    await createMinimalStandard(join(parent, projectName), framework);
-  }
-}
-
 async function installContextFactory(
   root: string,
-  repository: string,
+  options: ScaffoldOptions,
   run: Runner,
 ): Promise<void> {
-  if (!repository?.trim()) {
-    throw new Error("A context-factory repository URL is required for Git submodule sync.");
+  const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+  const bundledFactory = join(packageRoot, "context-factory");
+  const targetFactory = join(root, "context-factory");
+  if (options.contextRepository !== undefined) {
+    if (!options.contextRepository.trim()) {
+      throw new Error("A context-factory repository URL is required for Git submodule sync.");
+    }
+    if (!(await exists(join(root, ".git")))) await run("git", ["init"], root);
+    await run("git", ["submodule", "add", options.contextRepository, "context-factory"], root);
+  } else if (await exists(bundledFactory)) {
+    await copyDirectory(bundledFactory, targetFactory, (src) => !src.includes("/.git"));
+  } else {
+    throw new Error("No bundled context-factory found and no repository provided.");
   }
-  if (!(await exists(join(root, ".git")))) await run("git", ["init"], root);
-  await run("git", ["submodule", "add", repository, "context-factory"], root);
+  const bridgeCli = join(root, "context-factory/app/cli/bin/context-cli.mjs");
+  if (await exists(bridgeCli)) {
+    await run("node", [bridgeCli, "bridge", "--target", "."], root);
+  }
 }
 
 async function createContextEntrypoints(root: string, answers: Answers): Promise<void> {
-  const hasFrontend = answers.mode === "monorepo"
-    || answers.framework === "vite"
-    || answers.framework === "next"
-    || answers.framework === "astro";
-  const frontend = hasFrontend ? " For frontend work, also read `docs/design-pattern.md`." : "";
-  const shared = `Before changing this project, read \`context-factory/orchestrator/SHARED.md\` and \`context-factory/context-manifest.json\`. Load only task-relevant rules and skills.${frontend} Run \`pnpm context:validate\` after changing context files.`;
+  const hasFrontend = answers.architecture === "frontend" || answers.architecture === "monorepo";
+  const appNote = answers.architecture === "monorepo"
+    ? " Application code lives in `app/web` (frontend) and `app/api` (backend)."
+    : " Application code lives in `app/`.";
+  const frontendNote = hasFrontend ? " For frontend work, also read `docs/design-pattern.md`." : "";
+  const shared = `Before changing this project, read \`context-factory/orchestrator/SHARED.md\` and \`context-factory/context-manifest.json\`. Load only task-relevant rules and skills.${frontendNote}${appNote} Run \`pnpm context:validate\` after changing context files.`;
   await Promise.all([
     writeText(join(root, "AGENTS.md"), `# Project Agent Entry Point\n\n${shared}`),
     writeText(join(root, "CLAUDE.md"), `# Claude Project Entry Point\n\n${shared}\n\nUse \`context-factory/orchestrator/CLAUDE.md\` for adapter-specific presentation guidance.`),
@@ -237,15 +337,16 @@ async function createContextEntrypoints(root: string, answers: Answers): Promise
 }
 
 async function writeDesignPatternProfile(root: string, answers: Answers): Promise<void> {
-  const framework = answers.mode === "monorepo" ? answers.frontend : answers.framework;
-  if (framework !== "vite" && framework !== "next" && framework !== "astro") return;
+  const framework = answers.architecture === "monorepo" ? answers.frontend : answers.frontend;
+  if (!framework || (framework !== "vite" && framework !== "next" && framework !== "astro")) return;
   const styling = answers.styling ?? "none";
-  const owner = answers.mode === "monorepo" ? "`packages/ui`" : "the application source tree";
-  const consumer = answers.mode === "monorepo" ? "`apps/web` consumes `@workspace/ui`" : "components remain local to the application";
+  const isMonorepo = answers.architecture === "monorepo";
+  const owner = isMonorepo ? "`packages/ui`" : "the application source tree in `app/`";
+  const consumer = isMonorepo ? "`app/web` consumes `@workspace/ui`" : "components remain local to `app/`";
   const addCommand = styling === "shadcn"
-    ? answers.mode === "monorepo"
-      ? "`pnpm dlx shadcn@latest add <component> -c apps/web` routes shared primitives into `packages/ui`."
-      : "Run `pnpm dlx shadcn@latest add <component>` from the project root."
+    ? isMonorepo
+      ? "`pnpm dlx shadcn@latest add <component> -c app/web` routes shared primitives into `packages/ui`."
+      : "Run `pnpm dlx shadcn@latest add <component>` from inside `app/`."
     : "Add new primitives through the selected system's existing package and configuration; do not introduce a second UI system by default.";
   await writeText(
     join(root, "docs/design-pattern.md"),
@@ -276,17 +377,30 @@ ${addCommand}
 }
 
 async function writeReadme(root: string, answers: Answers): Promise<void> {
-  const framework = answers.mode === "standard" ? answers.framework! : answers.frontend!;
-  const devCommand = answers.mode === "monorepo" ? "pnpm turbo run dev" : "pnpm dev";
-  const structure = answers.mode === "monorepo"
-    ? `A pnpm + Turborepo workspace with ${frameworkLabel[answers.frontend!]} in \`apps/web\`, ${frameworkLabel[answers.backend!]} in \`apps/api\`, and shared packages.`
-    : `A standard ${frameworkLabel[framework]} project with context-factory layered into the project root.`;
-  const stylingNote = framework === "vite" || framework === "next" || framework === "astro"
-    ? `\n\n## Frontend design system\n\nThis project uses **${getStylingLabel(answers.styling)}**. Read \`docs/design-pattern.md\` before changing frontend components or pages.${answers.mode === "monorepo" ? " Shared UI primitives and styling dependencies are owned by `packages/ui`." : ""}`
+  const { architecture, projectName } = answers;
+  const devCommand = architecture === "monorepo" ? "pnpm turbo run dev" : "pnpm dev";
+  let structure: string;
+  if (architecture === "monorepo") {
+    structure = `A pnpm + Turborepo workspace with ${frameworkLabel[answers.frontend!]} in \`app/web\`, ${frameworkLabel[answers.backend!]} in \`app/api\`, and shared packages.\n\n\`\`\`\n${projectName}/\n├── app/\n│   ├── web/        # Frontend (${frameworkLabel[answers.frontend!]})\n│   └── api/        # Backend (${frameworkLabel[answers.backend!]})\n├── packages/       # Shared UI, hooks, services, db\n└── context-factory/\n\`\`\``;
+  } else if (architecture === "frontend") {
+    structure = `A ${frameworkLabel[answers.frontend!]} frontend application.\n\n\`\`\`\n${projectName}/\n├── app/            # Frontend (${frameworkLabel[answers.frontend!]})\n└── context-factory/\n\`\`\``;
+  } else {
+    structure = `A ${frameworkLabel[answers.backend!]} backend API.\n\n\`\`\`\n${projectName}/\n├── app/            # Backend (${frameworkLabel[answers.backend!]})\n└── context-factory/\n\`\`\``;
+  }
+  const hasFrontend = architecture === "frontend" || architecture === "monorepo";
+  const stylingNote = hasFrontend
+    ? `\n\n## Frontend design system\n\nThis project uses **${getStylingLabel(answers.styling)}**. Read \`docs/design-pattern.md\` before changing frontend components or pages.${architecture === "monorepo" ? " Shared UI primitives and styling dependencies are owned by `packages/ui`." : ""}`
     : "";
-  const contextNote = "Use `pnpm context:pull` to update the Git submodule, then run `pnpm context:validate`.";
-  await writeText(join(root, "README.md"), `# ${answers.projectName}\n\n${structure}${stylingNote}\n\n## Start\n\n\`\`\`sh\npnpm install\n${devCommand}\n\`\`\`\n\n## Context factory\n\nValidate the included rules, skills, and workflows with:\n\n\`\`\`sh\npnpm context:validate\n\`\`\`\n\nOpen \`context-factory/\` as the Obsidian vault to navigate the complete rules, skills, orchestrators, tasks, and decisions graph.\n\n> ${contextNote}\n`);
+  const contextNote = "Use `pnpm context:pull` to update context-factory, then run `pnpm context:validate`.";
+  await writeText(
+    join(root, "README.md"),
+    `# ${projectName}\n\n${structure}${stylingNote}\n\n## Start\n\n\`\`\`sh\ncd ${projectName}\npnpm install\n${devCommand}\n\`\`\`\n\n## Context factory\n\nValidate the included rules, skills, and workflows with:\n\n\`\`\`sh\npnpm context:validate\n\`\`\`\n\nOpen \`context-factory/\` as the Obsidian vault to navigate the complete rules, skills, orchestrators, tasks, and decisions graph.\n\n> ${contextNote}\n`,
+  );
 }
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
 
 export async function scaffoldProject(answers: Answers, options: ScaffoldOptions): Promise<string> {
   assertValidAnswers(answers);
@@ -296,21 +410,39 @@ export async function scaffoldProject(answers: Answers, options: ScaffoldOptions
   if (await exists(root)) throw new Error(`Target already exists: ${root}`);
   const run = options.run ?? defaultRunner;
 
-  if (answers.mode === "monorepo") await createMonorepo(root, answers);
-  else await runOfficialGenerator(parent, answers.projectName, answers.framework!, run);
-
-  const packageJsonPath = join(root, "package.json");
-  if (!(await exists(packageJsonPath))) {
-    throw new Error("Framework generator completed without creating package.json.");
+  // 1. Generate application code
+  if (answers.architecture === "monorepo") {
+    await createMonorepoApp(root, answers);
+  } else if (answers.architecture === "frontend") {
+    await createFrontendApp(root, answers);
+    await writeRootPackageJson(root, answers.projectName, "frontend");
+  } else {
+    await createBackendApp(root, answers);
+    await writeRootPackageJson(root, answers.projectName, "backend");
   }
+
+  // 2. Verify root package.json was created
+  const rootPackageJsonPath = join(root, "package.json");
+  if (!(await exists(rootPackageJsonPath))) {
+    throw new Error("Scaffolding completed without creating root package.json.");
+  }
+
+  // 3. Apply styling (only for frontend/monorepo)
   await configureStyling(root, answers);
-  await addPackageScript(packageJsonPath, "context:pull", CONTEXT_PULL_SCRIPT);
+
+  // 4. Shared infrastructure (.npmrc, .nvmrc, CI)
   await createProjectInfrastructure(root);
-  await installContextFactory(root, options.contextRepository ?? OFFICIAL_CONTEXT_REPOSITORY, run);
-  await addPackageScript(packageJsonPath, "context:validate", CONTEXT_VALIDATE_SCRIPT);
+
+  // 5. Install context-factory at root (outside app/)
+  await installContextFactory(root, options, run);
+
+  // 6. Agent entrypoints (AGENTS.md, CLAUDE.md, GEMINI.md)
   await createContextEntrypoints(root, answers);
+
+  // 7. Documentation
   await writeDesignPatternProfile(root, answers);
   await writeReadme(root, answers);
+
   return root;
 }
 

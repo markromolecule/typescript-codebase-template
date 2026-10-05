@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "bridgeVersion": "1.2.0",
+  "factoryPath": "./context-factory",
+  "integrationMethod": "submodule",
+  "packageManager": "pnpm",
+  "ides": [
+    "antigravity",
+    "gemini",
+    "cursor",
+    "vscode",
+    "copilot",
+    "trae",
+    "windsurf",
+    "claude",
+    "codex"
+  ],
+  "stacks": [
+    "typescript"
+  ],
+  "createdAt": "2026-10-05T03:28:18.474Z",
+  "scoping": {
+    "tasks": "./docs/tasks",
+    "decisions": "./docs/decisions",
+    "rules": "./rules",
+    "agents": "./.agents"
+  },
+  "symlinks": [
+    {
+      "id": ".agents/rules",
+      "target": "../context-factory/rules",
+      "type": "dir"
+    },
+    {
+      "id": ".agents/agents",
+      "target": "../context-factory/agents",
+      "type": "dir"
+    },
+    {
+      "id": ".agents/workflows",
+      "target": "../context-factory/workflows",
+      "type": "dir"
+    },
+    {
+      "id": ".agents/AGENTS.md",
+      "target": "../context-factory/AGENTS.md",
+      "type": "file"
+    },
+    {
+      "id": ".agents/GEMINI.md",
+      "target": "../context-factory/GEMINI.md",
+      "type": "file"
+    },
+    {
+      "id": ".agents/skills/adr",
+      "target": "../../context-factory/skills/adr",
+      "type": "dir"
+    },
+    {
+      "id": ".agents/skills/context",
+      "target": "../../context-factory/skills/context",
+      "type": "dir"
+    },
+    {
+      "id": ".agents/skills/execute",
+      "target": "../../context-factory/skills/execute",
+      "type": "dir"
+    },
+    {
+      "id": ".agents/skills/explore",
+      "target": "../../context-factory/skills/explore",
+      "type": "dir"
+    },
+    {
+      "id": ".agents/skills/grill",
+      "target": "../../context-factory/skills/grill",
+      "type": "dir"
+    },
+    {
+      "id": ".agents/skills/grounding",
+      "target": "../../context-factory/skills/grounding",
+      "type": "dir"
+    },
+    {
+      "id": ".agents/skills/plan",
+      "target": "../../context-factory/skills/plan",
+      "type": "dir"
+    },
+    {
+      "id": ".agents/skills/refactor",
+      "target": "../../context-factory/skills/refactor",
+      "type": "dir"
+    },
+    {
+      "id": ".agents/skills/security",
+      "target": "../../context-factory/skills/security",
+      "type": "dir"
+    },
+    {
+      "id": ".agents/skills/verify",
+      "target": "../../context-factory/skills/verify",
+      "type": "dir"
+    }
+  ],
+  "commands": {
+    "resolve": "node ./context-factory/scripts/context.mjs resolve",
+    "bundle": "node ./context-factory/scripts/context.mjs bundle",
+    "doctor": "node ./context-factory/scripts/context.mjs doctor",
+    "cli": "node ./context-factory/app/cli/bin/context-cli.mjs"
+  }
+}

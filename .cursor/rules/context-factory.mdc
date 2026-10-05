@@ -1,0 +1,11 @@
+---
+description: "Context Factory Orchestrator & Architecture Directives"
+alwaysApply: true
+---
+
+# Cursor Rules - Context Factory Bridge
+
+- Refer to `./context-factory/orchestrator/SHARED.md` for shared orchestration directives.
+- Use `node ./context-factory/scripts/context.mjs resolve "<prompt>"` to determine relevant rules and skills.
+- Save task plans to `./docs/tasks/` and ADRs to `./docs/decisions/`.
+- Follow universal engineering rules from `./context-factory/rules/`.

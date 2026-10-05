@@ -28,10 +28,9 @@ function mergeSection(
 }
 
 function frontendFramework(answers: Answers): FrontendFramework | undefined {
-  if (answers.mode === "monorepo") return answers.frontend;
-  return answers.framework === "vite" || answers.framework === "next" || answers.framework === "astro"
-    ? answers.framework
-    : undefined;
+  if (answers.architecture === "monorepo") return answers.frontend;
+  if (answers.architecture === "frontend") return answers.frontend;
+  return undefined;
 }
 
 function usesTailwind(system: StylingSystem): boolean {
@@ -72,7 +71,7 @@ async function configureSourceAlias(
 
 function cssContents(system: StylingSystem, isMonorepo: boolean): string {
   const sources = isMonorepo
-    ? '@source "../**/*.{js,ts,jsx,tsx,astro}";\n@source "../../../apps/web/**/*.{js,ts,jsx,tsx,astro}";\n\n'
+    ? '@source "../**/*.{js,ts,jsx,tsx,astro}";\n@source "../../../app/web/**/*.{js,ts,jsx,tsx,astro}";\n\n'
     : "";
   if (system === "bootstrap") {
     return `@import "bootstrap/dist/css/bootstrap.min.css";
@@ -234,7 +233,7 @@ async function configureMonorepo(
   framework: FrontendFramework,
   system: Exclude<StylingSystem, "none">,
 ): Promise<void> {
-  const appRoot = join(root, "apps/web");
+  const appRoot = join(root, "app/web");
   const uiRoot = join(root, "packages/ui");
 
   await updatePackageJson(join(appRoot, "package.json"), (packageJson) =>
@@ -378,8 +377,13 @@ export async function configureStyling(root: string, answers: Answers): Promise<
   const framework = frontendFramework(answers);
   const system = answers.styling ?? "none";
   if (!framework || system === "none") return;
-  if (answers.mode === "monorepo") await configureMonorepo(root, framework, system);
-  else await configureStandard(root, framework, system);
+  if (answers.architecture === "monorepo") {
+    await configureMonorepo(root, framework, system);
+  } else {
+    // For single-app frontend, app files live in root/app/ not root/
+    const appRoot = join(root, "app");
+    await configureStandard(appRoot, framework, system);
+  }
 }
 
 export function getStylingLabel(system: StylingSystem | undefined): string {

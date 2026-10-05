@@ -1,5 +1,10 @@
-# Gemini Project Entry Point
+# Gemini & Antigravity Host Entry Point Contract
 
-Before changing this project, read `context-factory/orchestrator/SHARED.md` and `context-factory/context-manifest.json`. Load only task-relevant rules and skills. Run `pnpm context:validate` after changing context files.
+This repository is bridged to **Context Factory** at `./context-factory`.
 
-Use `context-factory/orchestrator/GEMINI.md` for adapter-specific presentation guidance.
+## Mandatory Directives
+
+- Consult `./context-factory/orchestrator/SHARED.md` for the authoritative orchestration contract.
+- Resolve context via `node ./context-factory/scripts/context.mjs resolve "<request>"`.
+- Write task plans to host `./docs/tasks/` and architecture decisions to host `./docs/decisions/`.
+- Follow universal engineering rules from `./context-factory/rules/`.

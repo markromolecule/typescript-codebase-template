@@ -13,11 +13,16 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/cli.ts",
-    "test": "vitest run",
+    "test": "vitest run src",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "context:pull": "git submodule update --remote --merge",
-    "context:update": "git submodule update --remote --merge",
-    "context:validate": "node context-factory/scripts/validate-context.mjs"
+    "context:update": "git submodule update --remote --merge ./context-factory && pnpm run context:doctor",
+    "context:validate": "node context-factory/scripts/validate-context.mjs",
+    "context:resolve": "node ./context-factory/scripts/context.mjs resolve",
+    "context:bundle": "node ./context-factory/scripts/context.mjs bundle",
+    "context:doctor": "node ./context-factory/scripts/context.mjs doctor",
+    "context:bridge": "node ./context-factory/app/cli/bin/context-cli.mjs bridge --target .",
+    "context:cli": "node ./context-factory/app/cli/bin/context-cli.mjs"
   },
   "engines": {
     "node": ">=20"

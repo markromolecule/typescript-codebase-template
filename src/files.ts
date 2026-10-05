@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
 export function stripJsonc(input: string): string {
@@ -148,4 +148,16 @@ export async function updateJson(
 ): Promise<void> {
   const value = await readJson(path);
   await writeJson(path, update(value));
+}
+
+export async function copyDirectory(
+  source: string,
+  destination: string,
+  filter?: (source: string, destination: string) => boolean,
+): Promise<void> {
+  await mkdir(destination, { recursive: true });
+  await cp(source, destination, {
+    recursive: true,
+    filter: filter ?? ((src) => !src.includes("/.git") && !src.endsWith("/.git")),
+  });
 }

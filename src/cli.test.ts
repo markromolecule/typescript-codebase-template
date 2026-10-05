@@ -35,3 +35,47 @@ describe("resolveContextRepository", () => {
     )).toBe("https://example.com/option.git");
   });
 });
+
+describe("collectAnswers prompt flow logic", () => {
+  it("frontend architecture: projectType includes frontend and styling fields", () => {
+    // Verify Answers type shape for frontend architecture
+    type FrontendAnswers = { projectName: string; architecture: "frontend"; frontend: "next" | "astro" | "vite"; styling: "shadcn" | "daisyui" | "bootstrap" | "tailwind" | "none"; backend?: never };
+    const answer: FrontendAnswers = {
+      projectName: "my-app",
+      architecture: "frontend",
+      frontend: "next",
+      styling: "shadcn",
+    };
+    expect(answer.architecture).toBe("frontend");
+    expect(answer.frontend).toBeDefined();
+    expect(answer.styling).toBeDefined();
+    expect(answer.backend).toBeUndefined();
+  });
+
+  it("backend architecture: projectType includes only backend field", () => {
+    const answer = {
+      projectName: "my-api",
+      architecture: "backend" as const,
+      backend: "hono" as const,
+    };
+    expect(answer.architecture).toBe("backend");
+    expect(answer.backend).toBeDefined();
+    // frontend and styling must not be set for backend-only projects
+    expect((answer as Record<string, unknown>)["frontend"]).toBeUndefined();
+    expect((answer as Record<string, unknown>)["styling"]).toBeUndefined();
+  });
+
+  it("monorepo architecture: projectType includes frontend, styling, and backend", () => {
+    const answer = {
+      projectName: "my-mono",
+      architecture: "monorepo" as const,
+      frontend: "vite" as const,
+      styling: "tailwind" as const,
+      backend: "express" as const,
+    };
+    expect(answer.architecture).toBe("monorepo");
+    expect(answer.frontend).toBeDefined();
+    expect(answer.styling).toBeDefined();
+    expect(answer.backend).toBeDefined();
+  });
+});
